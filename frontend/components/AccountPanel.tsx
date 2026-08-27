@@ -108,7 +108,7 @@ export function AccountPanel() {
               Connect to GenLayer
             </DialogTitle>
             <DialogDescription>
-              Connect your MetaMask wallet to start betting
+              Connect your MetaMask wallet to submit and get judged
             </DialogDescription>
           </DialogHeader>
 

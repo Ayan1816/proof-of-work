@@ -1,36 +1,35 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Loader2, Calendar, Users } from "lucide-react";
+import { Plus, Loader2, Sparkles } from "lucide-react";
 import { useCreateBet } from "@/lib/hooks/useFootballBets";
 import type { FeePresetLevel } from "@/lib/genlayer/fees";
+import type { ArenaCategory } from "@/lib/contracts/types";
 import { useWallet } from "@/lib/genlayer/wallet";
 import { error } from "@/lib/utils/toast";
 import { Button } from "./ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
-import { Input } from "./ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "./ui/dialog";
 import { Label } from "./ui/label";
+
+const CATEGORIES: ArenaCategory[] = ["Startup", "Meme", "Poem"];
 
 export function CreateBetModal() {
   const { isConnected, address, isLoading } = useWallet();
   const { createBet, isCreating, isSuccess } = useCreateBet();
 
   const [isOpen, setIsOpen] = useState(false);
-  const [gameDate, setGameDate] = useState("");
-  const [team1, setTeam1] = useState("");
-  const [team2, setTeam2] = useState("");
-  const [predictedWinner, setPredictedWinner] = useState<"1" | "2" | "0" | "">("");
+  const [category, setCategory] = useState<ArenaCategory | "">("");
+  const [content, setContent] = useState("");
   const [feePresetLevel, setFeePresetLevel] = useState<FeePresetLevel>("standard");
+  const [errors, setErrors] = useState({ category: "", content: "" });
 
-  const [errors, setErrors] = useState({
-    gameDate: "",
-    team1: "",
-    team2: "",
-    predictedWinner: "",
-  });
-
-  // Auto-close modal when wallet disconnects
-  // Don't close if transaction is in progress to avoid interrupting user
   useEffect(() => {
     if (!isConnected && isOpen && !isCreating) {
       setIsOpen(false);
@@ -38,31 +37,19 @@ export function CreateBetModal() {
   }, [isConnected, isOpen, isCreating]);
 
   const validateForm = (): boolean => {
-    const newErrors = {
-      gameDate: "",
-      team1: "",
-      team2: "",
-      predictedWinner: "",
-    };
+    const newErrors = { category: "", content: "" };
 
-    if (!gameDate.trim()) {
-      newErrors.gameDate = "Game date is required";
+    if (!category) {
+      newErrors.category = "Choose a category";
     }
-
-    if (!team1.trim()) {
-      newErrors.team1 = "Team 1 name is required";
-    }
-
-    if (!team2.trim()) {
-      newErrors.team2 = "Team 2 name is required";
-    }
-
-    if (!predictedWinner) {
-      newErrors.predictedWinner = "Please select your predicted winner";
+    if (!content.trim()) {
+      newErrors.content = "Content is required";
+    } else if (content.trim().length < 20) {
+      newErrors.content = "Give the judge a bit more to work with (20+ characters)";
     }
 
     setErrors(newErrors);
-    return !Object.values(newErrors).some((error) => error !== "");
+    return !Object.values(newErrors).some((value) => value !== "");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -73,25 +60,21 @@ export function CreateBetModal() {
       return;
     }
 
-    if (!validateForm()) {
+    if (!validateForm() || !category) {
       return;
     }
 
     createBet({
-      gameDate,
-      team1,
-      team2,
-      predictedWinner: predictedWinner, // Send "1", "2", or "0" directly
+      category,
+      content: content.trim(),
       feePresetLevel,
     });
   };
 
   const resetForm = () => {
-    setGameDate("");
-    setTeam1("");
-    setTeam2("");
-    setPredictedWinner("");
-    setErrors({ gameDate: "", team1: "", team2: "", predictedWinner: "" });
+    setCategory("");
+    setContent("");
+    setErrors({ category: "", content: "" });
   };
 
   const handleOpenChange = (open: boolean) => {
@@ -101,7 +84,6 @@ export function CreateBetModal() {
     setIsOpen(open);
   };
 
-  // Reset form and close modal on successful bet creation
   useEffect(() => {
     if (isSuccess) {
       resetForm();
@@ -114,147 +96,77 @@ export function CreateBetModal() {
       <DialogTrigger asChild>
         <Button variant="gradient" disabled={!isConnected || !address || isLoading}>
           <Plus className="w-4 h-4 mr-2" />
-          Create Bet
+          Submit Entry
         </Button>
       </DialogTrigger>
       <DialogContent className="brand-card border-2 sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">Create Football Bet</DialogTitle>
+          <DialogTitle className="text-2xl font-bold">Submit to Roy Arena</DialogTitle>
           <DialogDescription>
-            Make your prediction for an upcoming football match
+            The on-chain AI judge scores your Startup, Meme, or Poem.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6 mt-4">
-          {/* Game Date */}
-          <div className="space-y-2">
-            <Label htmlFor="gameDate" className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 !text-white" />
-              Game Date
-            </Label>
-            <Input
-              id="gameDate"
-              type="date"
-              value={gameDate}
-              onChange={(e) => {
-                setGameDate(e.target.value);
-                setErrors({ ...errors, gameDate: "" });
-              }}
-              className={errors.gameDate ? "border-destructive" : ""}
-            />
-            {errors.gameDate && (
-              <p className="text-xs text-destructive">{errors.gameDate}</p>
+          <div className="space-y-3">
+            <Label>Category</Label>
+            <div className="grid grid-cols-3 gap-3">
+              {CATEGORIES.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => {
+                    setCategory(option);
+                    setErrors({ ...errors, category: "" });
+                  }}
+                  className={`p-3 rounded-lg border-2 transition-all ${
+                    category === option
+                      ? "border-accent bg-accent/20 text-accent"
+                      : "border-white/10 hover:border-white/20"
+                  }`}
+                >
+                  <div className="font-semibold text-sm">{option}</div>
+                </button>
+              ))}
+            </div>
+            {errors.category && (
+              <p className="text-xs text-destructive">{errors.category}</p>
             )}
           </div>
 
-          {/* Teams */}
-          <div className="space-y-4">
-            <Label className="flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              Teams
+          <div className="space-y-2">
+            <Label htmlFor="content" className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              Content
             </Label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Input
-                  id="team1"
-                  type="text"
-                  placeholder="Team 1"
-                  value={team1}
-                  onChange={(e) => {
-                    setTeam1(e.target.value);
-                    setErrors({ ...errors, team1: "" });
-                  }}
-                  className={errors.team1 ? "border-destructive" : ""}
-                />
-                {errors.team1 && (
-                  <p className="text-xs text-destructive">{errors.team1}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Input
-                  id="team2"
-                  type="text"
-                  placeholder="Team 2"
-                  value={team2}
-                  onChange={(e) => {
-                    setTeam2(e.target.value);
-                    setErrors({ ...errors, team2: "" });
-                  }}
-                  className={errors.team2 ? "border-destructive" : ""}
-                />
-                {errors.team2 && (
-                  <p className="text-xs text-destructive">{errors.team2}</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Predicted Winner */}
-          <div className="space-y-3">
-            <Label>Your Prediction</Label>
-            <div className="grid grid-cols-3 gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setPredictedWinner("1");
-                  setErrors({ ...errors, predictedWinner: "" });
-                }}
-                disabled={!team1.trim()}
-                className={`p-4 rounded-lg border-2 transition-all ${
-                  predictedWinner === "1"
-                    ? "border-accent bg-accent/20 text-accent"
-                    : "border-white/10 hover:border-white/20"
-                } ${!team1.trim() ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-              >
-                <div className="font-semibold text-sm">{team1 || "Team 1"}</div>
-                <div className="text-xs text-muted-foreground mt-1">Wins</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setPredictedWinner("0");
-                  setErrors({ ...errors, predictedWinner: "" });
-                }}
-                disabled={!team1.trim() || !team2.trim()}
-                className={`p-4 rounded-lg border-2 transition-all ${
-                  predictedWinner === "0"
-                    ? "border-yellow-500 bg-yellow-500/20 text-yellow-400"
-                    : "border-white/10 hover:border-white/20"
-                } ${!team1.trim() || !team2.trim() ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-              >
-                <div className="font-semibold text-sm">Draw</div>
-                <div className="text-xs text-muted-foreground mt-1">Tie</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setPredictedWinner("2");
-                  setErrors({ ...errors, predictedWinner: "" });
-                }}
-                disabled={!team2.trim()}
-                className={`p-4 rounded-lg border-2 transition-all ${
-                  predictedWinner === "2"
-                    ? "border-accent bg-accent/20 text-accent"
-                    : "border-white/10 hover:border-white/20"
-                } ${!team2.trim() ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-              >
-                <div className="font-semibold text-sm">{team2 || "Team 2"}</div>
-                <div className="text-xs text-muted-foreground mt-1">Wins</div>
-              </button>
-            </div>
-            {errors.predictedWinner && (
-              <p className="text-xs text-destructive">{errors.predictedWinner}</p>
+            <textarea
+              id="content"
+              value={content}
+              onChange={(e) => {
+                setContent(e.target.value);
+                setErrors({ ...errors, content: "" });
+              }}
+              placeholder="Pitch, joke, or poem..."
+              rows={5}
+              className={`w-full rounded-md border bg-transparent px-3 py-2 text-sm outline-none ${
+                errors.content ? "border-destructive" : "border-white/10"
+              }`}
+            />
+            {errors.content && (
+              <p className="text-xs text-destructive">{errors.content}</p>
             )}
           </div>
 
           <div className="space-y-3">
             <Label>Fee Preset</Label>
             <div className="grid grid-cols-3 gap-2">
-              {([
-                { value: "low", label: "Low", detail: "No appeals" },
-                { value: "standard", label: "Standard", detail: "1 appeal" },
-                { value: "high", label: "High", detail: "2 appeals" },
-              ] as const).map((option) => (
+              {(
+                [
+                  { value: "low", label: "Low", detail: "No appeals" },
+                  { value: "standard", label: "Standard", detail: "1 appeal" },
+                  { value: "high", label: "High", detail: "2 appeals" },
+                ] as const
+              ).map((option) => (
                 <button
                   key={option.value}
                   type="button"
@@ -272,7 +184,6 @@ export function CreateBetModal() {
             </div>
           </div>
 
-          {/* Submit Button */}
           <div className="flex gap-3 pt-4">
             <Button
               type="button"
@@ -292,10 +203,10 @@ export function CreateBetModal() {
               {isCreating ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Creating...
+                  Judging...
                 </>
               ) : (
-                "Create Bet"
+                "Submit & Judge"
               )}
             </Button>
           </div>

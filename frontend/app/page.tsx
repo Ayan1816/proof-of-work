@@ -16,12 +16,12 @@ export default function HomePage() {
           {/* Hero Section */}
           <div className="text-center mb-8 animate-fade-in">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4">
-              Football Prediction Betting
+              Roy Judge Arena
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
-              AI-powered football match predictions on GenLayer blockchain.
+              Submit a Startup, Meme, or Poem. GenLayer AI judges it on-chain.
               <br />
-              Create bets, make predictions, and compete for points.
+              Climb the leaderboard with the best scores.
             </p>
           </div>
 
@@ -43,21 +43,21 @@ export default function HomePage() {
             <h2 className="text-2xl font-bold mb-4">How it Works</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2">
-                <div className="text-accent font-bold text-lg">1. Create a Bet</div>
+                <div className="text-accent font-bold text-lg">1. Submit</div>
                 <p className="text-sm text-muted-foreground">
-                  Connect your wallet and create a football match prediction. Choose the teams, date, and your predicted winner.
+                  Connect your wallet and send a Startup pitch, Meme, or Poem to the arena.
                 </p>
               </div>
               <div className="space-y-2">
-                <div className="text-accent font-bold text-lg">2. Wait for Resolution</div>
+                <div className="text-accent font-bold text-lg">2. Get Judged</div>
                 <p className="text-sm text-muted-foreground">
-                  After the match, the bet creator resolves the bet. GenLayer's AI verifies the actual match result.
+                  GenLayer validators run an AI judge and agree on a score plus feedback.
                 </p>
               </div>
               <div className="space-y-2">
-                <div className="text-accent font-bold text-lg">3. Earn Points</div>
+                <div className="text-accent font-bold text-lg">3. Climb the Board</div>
                 <p className="text-sm text-muted-foreground">
-                  Correct predictions earn you points. Climb the leaderboard and prove your football knowledge!
+                  Scores add up per wallet. Higher totals rise on the leaderboard.
                 </p>
               </div>
             </div>

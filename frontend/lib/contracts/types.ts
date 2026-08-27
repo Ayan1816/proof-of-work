@@ -1,18 +1,10 @@
-/**
- * TypeScript types for GenLayer Football Betting contract
- */
-
-export interface Bet {
+export interface Submission {
   id: string;
-  game_date: string;
-  team1: string;
-  team2: string;
-  predicted_winner: string;
-  has_resolved: boolean;
-  real_winner?: string;
-  real_score?: string;
-  resolution_url?: string;
-  owner: string;
+  user: string;
+  category: string;
+  content: string;
+  score: number;
+  feedback: string;
 }
 
 export interface LeaderboardEntry {
@@ -27,7 +19,4 @@ export interface TransactionReceipt {
   [key: string]: any;
 }
 
-export interface BetFilters {
-  resolved?: boolean;
-  owner?: string;
-}
+export type ArenaCategory = "Startup" | "Meme" | "Poem";
