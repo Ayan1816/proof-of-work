@@ -45,6 +45,7 @@ export function useBets() {
       return contract.getSubmissions();
     },
     refetchOnWindowFocus: true,
+    refetchInterval: 8000,
     staleTime: 2000,
     enabled: !!contract,
   });
@@ -64,6 +65,7 @@ export function usePlayerPoints(address: string | null) {
     refetchOnWindowFocus: true,
     enabled: !!address && !!contract,
     staleTime: 2000,
+    refetchInterval: 8000,
   });
 }
 
@@ -79,6 +81,7 @@ export function useLeaderboard() {
       return contract.getLeaderboard();
     },
     refetchOnWindowFocus: true,
+    refetchInterval: 8000,
     staleTime: 2000,
     enabled: !!contract,
   });
@@ -117,13 +120,25 @@ export function useCreateBet() {
       );
       return contract.submitEntry(address, category, content, feePreset);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["submissions"] });
-      queryClient.invalidateQueries({ queryKey: ["playerPoints"] });
-      queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+    onSuccess: async (receipt) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["submissions"] }),
+        queryClient.invalidateQueries({ queryKey: ["playerPoints"] }),
+        queryClient.invalidateQueries({ queryKey: ["leaderboard"] }),
+      ]);
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["submissions"] }),
+        queryClient.refetchQueries({ queryKey: ["playerPoints"] }),
+        queryClient.refetchQueries({ queryKey: ["leaderboard"] }),
+      ]);
       setIsCreating(false);
+      const score = receipt?.judgment?.score;
+      const feedback = receipt?.judgment?.feedback;
       success("Submission judged!", {
-        description: "The AI judge recorded your score on-chain.",
+        description:
+          score != null
+            ? `Score ${score}/10${feedback ? ` — ${feedback}` : ""}`
+            : "The AI judge recorded your score on-chain.",
       });
     },
     onError: (err: any) => {

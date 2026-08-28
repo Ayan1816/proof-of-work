@@ -60,7 +60,8 @@ export function getContractAddress(): string {
  */
 export function isMetaMaskInstalled(): boolean {
   if (typeof window === "undefined") return false;
-  return !!window.ethereum?.isMetaMask;
+  // Rabby, MetaMask, and other injected wallets all expose window.ethereum.
+  return !!window.ethereum;
 }
 
 /**

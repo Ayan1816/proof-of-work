@@ -16,6 +16,12 @@ export interface TransactionReceipt {
   status: string;
   hash: string;
   blockNumber?: number;
+  statusName?: string;
+  txExecutionResultName?: string;
+  judgment?: {
+    score?: number;
+    feedback?: string;
+  };
   [key: string]: any;
 }
 

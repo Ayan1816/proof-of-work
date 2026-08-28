@@ -1,5 +1,6 @@
 import { createClient } from "genlayer-js";
 import { studionet } from "genlayer-js/chains";
+import { ExecutionResult, TransactionStatus } from "genlayer-js/types";
 import type {
   ArenaCategory,
   LeaderboardEntry,
@@ -12,6 +13,13 @@ import {
   type FeePresetEstimate,
   type FeePresetLevel,
 } from "../genlayer/fees";
+
+const FAILED_TX_STATUSES = new Set([
+  "UNDETERMINED",
+  "CANCELED",
+  "LEADER_TIMEOUT",
+  "VALIDATORS_TIMEOUT",
+]);
 
 function asRecord(value: unknown): Record<string, unknown> {
   if (!value) return {};
@@ -27,6 +35,9 @@ function asRecord(value: unknown): Record<string, unknown> {
     } catch {
       return {};
     }
+  }
+  if (Array.isArray(value)) {
+    return Object.fromEntries(value.entries());
   }
   if (typeof value === "object") {
     return value as Record<string, unknown>;
@@ -46,6 +57,91 @@ function asSubmission(id: string, value: unknown): Submission {
   };
 }
 
+function collectTextBlobs(value: unknown, out: string[], depth = 0): void {
+  if (depth > 6 || value == null) return;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed) out.push(trimmed);
+    return;
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    if (typeof record.readable === "string") out.push(record.readable);
+    if (typeof record.payload === "string") out.push(record.payload);
+    for (const nested of Object.values(record)) {
+      collectTextBlobs(nested, out, depth + 1);
+    }
+  }
+}
+
+function extractJudgment(receipt: any): { score?: number; feedback?: string } {
+  const blobs: string[] = [];
+  const leader = receipt?.consensus_data?.leader_receipt;
+  collectTextBlobs(leader, blobs);
+  collectTextBlobs(receipt?.result, blobs);
+
+  for (const blob of blobs) {
+    const start = blob.indexOf("{");
+    const end = blob.lastIndexOf("}");
+    if (start < 0 || end <= start) continue;
+    try {
+      const parsed = JSON.parse(blob.slice(start, end + 1));
+      const score = Number(parsed.score ?? parsed.score_out_of_10);
+      const feedback = parsed.feedback != null ? String(parsed.feedback) : undefined;
+      if (Number.isFinite(score) || feedback) {
+        return {
+          ...(Number.isFinite(score) ? { score } : {}),
+          ...(feedback ? { feedback } : {}),
+        };
+      }
+    } catch {
+      // Keep scanning other blobs.
+    }
+  }
+  return {};
+}
+
+function assertSuccessfulReceipt(receipt: any): void {
+  const statusName = String(receipt?.statusName || "").toUpperCase();
+  if (FAILED_TX_STATUSES.has(statusName)) {
+    throw new Error(
+      `The AI judge did not reach consensus (${statusName}). Your score was not saved. Please try again.`
+    );
+  }
+
+  const execution = receipt?.txExecutionResultName;
+  if (execution && execution !== ExecutionResult.FINISHED_WITH_RETURN) {
+    const leader = receipt?.consensus_data?.leader_receipt;
+    const rec = Array.isArray(leader) ? leader[0] : leader;
+    const payload = rec?.result?.payload;
+    const detail =
+      typeof payload === "string"
+        ? payload
+        : rec?.error || rec?.execution_result || execution;
+    throw new Error(`Contract execution failed: ${detail}`);
+  }
+}
+
+function buildClient(address?: string | null, studioUrl?: string) {
+  const config: any = {
+    chain: studionet,
+  };
+
+  if (address) {
+    config.account = address as `0x${string}`;
+  }
+
+  if (studioUrl) {
+    config.endpoint = studioUrl;
+  }
+
+  if (typeof window !== "undefined" && (window as any).ethereum) {
+    config.provider = (window as any).ethereum;
+  }
+
+  return createClient(config);
+}
+
 class FootballBets {
   private contractAddress: `0x${string}`;
   private client: any;
@@ -58,33 +154,11 @@ class FootballBets {
   ) {
     this.contractAddress = contractAddress as `0x${string}`;
     this.studioUrl = studioUrl;
-
-    const config: any = {
-      chain: studionet,
-    };
-
-    if (address) {
-      config.account = address as `0x${string}`;
-    }
-
-    if (studioUrl) {
-      config.endpoint = studioUrl;
-    }
-
-    this.client = createClient(config);
+    this.client = buildClient(address, studioUrl);
   }
 
   updateAccount(address: string): void {
-    const config: any = {
-      chain: studionet,
-      account: address as `0x${string}`,
-    };
-
-    if (this.studioUrl) {
-      config.endpoint = this.studioUrl;
-    }
-
-    this.client = createClient(config);
+    this.client = buildClient(address, this.studioUrl);
   }
 
   private async readLeaderboardRaw(): Promise<Record<string, unknown>> {
@@ -101,6 +175,7 @@ class FootballBets {
       const board = await this.readLeaderboardRaw();
       return Object.entries(board)
         .map(([id, value]) => asSubmission(id, value))
+        .filter((item) => item.user || item.content)
         .sort((a, b) => Number(b.id) - Number(a.id));
     } catch (error) {
       console.error("Error fetching submissions:", error);
@@ -181,12 +256,18 @@ class FootballBets {
 
     const receipt = await this.client.waitForTransactionReceipt({
       hash: txHash,
-      status: "ACCEPTED" as any,
-      retries: 24,
+      status: TransactionStatus.ACCEPTED,
+      retries: 60,
       interval: 5000,
     });
 
-    return receipt as TransactionReceipt;
+    assertSuccessfulReceipt(receipt);
+
+    return {
+      ...(receipt as TransactionReceipt),
+      hash: (receipt as any)?.hash || txHash,
+      judgment: extractJudgment(receipt),
+    };
   }
 }
 
