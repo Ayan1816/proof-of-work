@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { AccountPanel } from "./AccountPanel";
-import { CreateBetModal } from "./CreateBetModal";
-import { useBets } from "@/lib/hooks/useFootballBets";
+import { SubmitModal } from "./SubmitModal";
+import { useSubmissions } from "@/lib/hooks/useRoyArena";
 import { Logo, LogoMark } from "./Logo";
 
 export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
-  const { data: bets } = useBets();
+  const { data: submissions } = useSubmissions();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -40,8 +40,8 @@ export function Navbar() {
   };
   const borderRadius = getBorderRadius();
 
-  const totalBets = bets?.length || 0;
-  const resolvedBets = bets?.filter((item) => item.score > 0).length || 0;
+  const totalSubmissions = submissions?.length || 0;
+  const judgedCount = submissions?.filter((item) => item.score > 0).length || 0;
 
   return (
     <header
@@ -96,17 +96,17 @@ export function Navbar() {
               <div className="hidden md:flex items-center gap-6 text-sm">
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">Submissions:</span>
-                  <span className="text-foreground font-bold text-accent">{totalBets}</span>
+                  <span className="text-foreground font-bold text-accent">{totalSubmissions}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">Judged:</span>
-                  <span className="text-foreground font-bold text-accent">{resolvedBets}</span>
+                  <span className="text-foreground font-bold text-accent">{judgedCount}</span>
                 </div>
               </div>
 
               {/* Right: Actions */}
               <div className="flex items-center gap-3">
-                <CreateBetModal />
+                <SubmitModal />
                 <AccountPanel />
               </div>
             </div>

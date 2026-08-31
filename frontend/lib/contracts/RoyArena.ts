@@ -142,7 +142,7 @@ function buildClient(address?: string | null, studioUrl?: string) {
   return createClient(config);
 }
 
-class FootballBets {
+class RoyArena {
   private contractAddress: `0x${string}`;
   private client: any;
   private studioUrl?: string;
@@ -183,20 +183,19 @@ class FootballBets {
     }
   }
 
-  async getBets(): Promise<Submission[]> {
-    return this.getSubmissions();
-  }
-
   async getPlayerPoints(address: string | null): Promise<number> {
     if (!address) {
       return 0;
     }
 
     try {
-      const submissions = await this.getSubmissions();
-      return submissions
-        .filter((item) => item.user.toLowerCase() === address.toLowerCase())
-        .reduce((sum, item) => sum + item.score, 0);
+      const points = await this.client.readContract({
+        address: this.contractAddress,
+        functionName: "get_player_points",
+        args: [address],
+      });
+      const numeric = Number(points);
+      return Number.isFinite(numeric) ? numeric : 0;
     } catch (error) {
       console.error("Error fetching player points:", error);
       return 0;
@@ -271,4 +270,4 @@ class FootballBets {
   }
 }
 
-export default FootballBets;
+export default RoyArena;

@@ -234,18 +234,18 @@ class TestNestedTreeMapWorkaround:
     def test_add_single_item(self, direct_vm, direct_deploy):
         """Storing one item in the list works."""
         contract = direct_deploy(CONTRACT_PATH)
-        contract.add_to_index("match:2024-06-20", "bet_001")
-        result = contract.get_index("match:2024-06-20")
-        assert result == ["bet_001"]
+        contract.add_to_index("submission:poem", "item_001")
+        result = contract.get_index("submission:poem")
+        assert result == ["item_001"]
 
     def test_add_multiple_items_same_key(self, direct_vm, direct_deploy):
         """Multiple appends to same key accumulate correctly."""
         contract = direct_deploy(CONTRACT_PATH)
-        contract.add_to_index("match:2024-06-20", "bet_001")
-        contract.add_to_index("match:2024-06-20", "bet_002")
-        contract.add_to_index("match:2024-06-20", "bet_003")
-        result = contract.get_index("match:2024-06-20")
-        assert result == ["bet_001", "bet_002", "bet_003"]
+        contract.add_to_index("submission:poem", "item_001")
+        contract.add_to_index("submission:poem", "item_002")
+        contract.add_to_index("submission:poem", "item_003")
+        result = contract.get_index("submission:poem")
+        assert result == ["item_001", "item_002", "item_003"]
 
     def test_different_keys_are_independent(self, direct_vm, direct_deploy):
         """Different keys store independent lists."""

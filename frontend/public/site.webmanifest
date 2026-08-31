@@ -1,7 +1,7 @@
 {
-  "name": "GenLayer Football Market",
-  "short_name": "GenLayer Market",
-  "description": "AI-powered football match predictions on GenLayer blockchain",
+  "name": "Roy Judge Arena",
+  "short_name": "Roy Arena",
+  "description": "On-chain AI judging for Startups, Memes, and Poems on GenLayer",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Linting
-genvm-lint check contracts/football_bets.py    # Lint a contract
+genvm-lint check contracts/roy_arena.py        # Lint a contract
 
 # Testing
 pytest tests/direct/ -v                        # Direct mode tests (fast, no Studio)
@@ -23,7 +23,7 @@ cd frontend && npm run dev                     # Start frontend dev server
 ## Architecture
 
 ```
-contracts/          # Python intelligent contracts
+contracts/          # Python intelligent contracts (RoyJudgeArena)
 tests/
   direct/           # Fast in-memory tests with web/LLM mocks
   integration/      # Full tests against GenLayer Studio
@@ -71,6 +71,8 @@ class MyContract(gl.Contract):
 
 **Storage types**: `TreeMap`, `DynArray`, `Array`, `u256`, `i256`, `@allow_storage` for custom classes
 
+**Roy Judge Arena validators**: `contracts/roy_arena.py` is the single contract source. Validators must independently re-read the submission and re-score it. Do not accept a leader result just because the score is in 1-10 and feedback is non-empty.
+
 ## Writing Direct Mode Tests
 
 Direct mode runs contracts in-memory without Studio. Key APIs:
@@ -113,8 +115,8 @@ The GenVM linter catches contract issues before deployment:
 
 ## Frontend Patterns
 
-- Contract interactions: `frontend/lib/contracts/FootballBets.ts`
-- React hooks: `frontend/lib/hooks/useFootballBets.ts`
+- Contract interactions: `frontend/lib/contracts/RoyArena.ts`
+- React hooks: `frontend/lib/hooks/useRoyArena.ts`
 - Wallet context: `frontend/lib/genlayer/WalletProvider.tsx`
 - GenLayer client: `frontend/lib/genlayer/client.ts`
 

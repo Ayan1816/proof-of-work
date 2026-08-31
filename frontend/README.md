@@ -1,6 +1,6 @@
-# GenLayer Football Market
+# Roy Judge Arena
 
-Next.js frontend for GenLayer Football Market - AI-powered football match predictions on GenLayer blockchain.
+Next.js frontend for Roy Judge Arena — an on-chain AI judge for Startups, Memes, and Poems on GenLayer.
 
 ## Setup
 
@@ -22,7 +22,7 @@ cp .env.example .env
 ```
 
 3. Configure environment variables:
-   - `NEXT_PUBLIC_CONTRACT_ADDRESS` - GenLayer Football Betting contract address
+   - `NEXT_PUBLIC_CONTRACT_ADDRESS` - deployed RoyJudgeArena contract address
    - `NEXT_PUBLIC_STUDIO_URL` - GenLayer Studio URL (default: https://studio.genlayer.com/api)
 
 ## Development
@@ -65,20 +65,17 @@ npm start
 
 ## Wallet Management
 
-The app uses GenLayer's account system:
-- **Create Account**: Generate a new private key
-- **Import Account**: Import existing private key
-- **Export Account**: Export your private key (secured)
-- **Disconnect**: Clear stored account data
-
-Accounts are stored in browser's localStorage for development convenience.
+The app uses MetaMask with GenLayer's network:
+- **Connect Wallet**: Connect MetaMask and switch to GenLayer
+- **Switch Account**: Pick a different MetaMask account
+- **Disconnect**: Clear the connected session
 
 ## Features
 
-- **Create Bets**: Create football match predictions with team names, game date, and predicted winner (Team 1, Team 2, or Draw)
-- **View Bets**: Real-time bet table with match details, predictions, status, and owners
-- **Resolve Bets**: Bet owners can resolve matches using GenLayer's AI to verify actual results
-- **Leaderboard**: Track top players by points earned from correct predictions
-- **Player Stats**: View your points and ranking in the community
+- **Submit entries**: Send a Startup, Meme, or Poem to the on-chain AI judge
+- **Independent consensus**: Validators re-read the work and must agree on the score
+- **Submission table**: Live scores, feedback, and authors
+- **Leaderboard**: Rank wallets by total judged score
+- **Player stats**: View your points from agreed judgments
 - **Glass-morphism UI**: Premium dark theme with OKLCH colors, backdrop blur effects, and smooth animations
-- **Real-time Updates**: Automatic data fetching with 3-second polling intervals via TanStack Query
+- **Real-time Updates**: Automatic data fetching via TanStack Query

@@ -203,38 +203,29 @@ def test_run_validator_respects_leader_result_override(direct_vm, direct_deploy,
     assert result is False, f"Expected False (forced leader_result mismatch), got {result!r}"
 
 
-def test_run_validator_with_football_bets_skips_gracefully(direct_vm, direct_deploy):
-    """
-    Document that strict_eq-based contracts (football_bets) DO capture validators,
-    but run_validator() FAILS because strict_eq's validator calls spawn_sandbox,
-    which is unsupported in wasi_mock. This is a known v0.25.0 limitation.
-    """
-    direct_vm.mock_web(r".*bbc.*", {"status": 200, "body": "Spain 3-0 Italy"})
-    direct_vm.mock_llm(r".*", '{"score": "3:0", "winner": 1}')
+def test_run_validator_with_roy_arena_independent_judgment(
+    direct_vm, direct_deploy, direct_alice
+):
+    """Roy Arena validators re-judge the submission and can be re-run in direct mode."""
+    from tests.direct.conftest import to_hex
 
-    contract = direct_deploy("contracts/football_bets.py")
-    contract.create_bet("2024-06-20", "Spain", "Italy", "1")
-
-    try:
-        contract.resolve_bet("2024-06-20_spain_italy")
-    except Exception:
-        pass
-
-    if not direct_vm._captured_validators:
-        pytest.skip("No validator captured")
-
-    # Known to fail with: AssertionError: unknown type 14
-    # (Sandbox gl_call not handled by wasi_mock)
-    with pytest.raises((AssertionError, Exception)) as exc_info:
-        direct_vm.run_validator()
-
-    assert "unknown type 14" in str(exc_info.value) or "sandbox" in str(exc_info.value).lower() or True, (
-        f"Got: {exc_info.value}"
+    meme = "Why did the validator cross the chain? To get to the other fork."
+    direct_vm.mock_llm(
+        r".*",
+        '{"is_valid": true, "score": 8, "feedback": "Sharp and funny chain joke."}',
     )
-    # Mark it as an expected known limitation
-    pytest.xfail(
-        "strict_eq validator uses spawn_sandbox which is unsupported in direct mode (wasi_mock)"
+    contract = direct_deploy("contracts/roy_arena.py")
+    direct_vm.sender = direct_alice
+    contract.submit_and_judge(to_hex(direct_alice), "Meme", meme)
+
+    assert direct_vm._captured_validators, "No validator was captured"
+
+    direct_vm.clear_mocks()
+    direct_vm.mock_llm(
+        r".*",
+        '{"is_valid": true, "score": 2, "feedback": "The joke is thin and does not land."}',
     )
+    assert direct_vm.run_validator() is False
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -291,25 +282,19 @@ def test_exec_prompt_accepts_raw_image_bytes(direct_vm, direct_deploy, visual_co
     assert result == "a cat on a mat", f"Unexpected LLM result: {result!r}"
 
 
-def test_web_render_text_mode_works(direct_vm, direct_deploy):
-    """
-    web.render(mode='text') returns a string — confirmed working baseline.
-    Used by football_bets. Validates that mock_web intercepts WebRender calls.
-    """
-    direct_vm.mock_web(r".*bbc.*", {"status": 200, "body": "Spain 3-0 Italy full time"})
-    direct_vm.mock_llm(r".*", '{"score": "3:0", "winner": 1}')
+def test_web_get_mock_is_hit(direct_vm, direct_deploy, nondet_contract_path):
+    """mock_web intercepts gl.nondet.web.get used by independent validators."""
+    direct_vm.mock_web(r".*api\.example\.com.*", {
+        "method": "GET",
+        "status": 200,
+        "body": b"result_A",
+    })
 
-    contract = direct_deploy("contracts/football_bets.py")
-    contract.create_bet("2024-06-20", "Spain", "Italy", "1")
+    contract = direct_deploy(nondet_contract_path)
+    contract.fetch_and_store("https://api.example.com/data")
 
-    try:
-        contract.resolve_bet("2024-06-20_spain_italy")
-    except Exception:
-        pass
-
-    # The web mock must have been hit
     assert len(direct_vm._web_mocks_hit) > 0, (
-        "Web mock was never matched — WebRender interception may be broken"
+        "Web mock was never matched — web.get interception may be broken"
     )
 
 

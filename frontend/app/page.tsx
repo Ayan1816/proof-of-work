@@ -1,7 +1,7 @@
 "use client";
 
 import { Navbar } from "@/components/Navbar";
-import { BetsTable } from "@/components/BetsTable";
+import { SubmissionsTable } from "@/components/SubmissionsTable";
 import { Leaderboard } from "@/components/Leaderboard";
 
 export default function HomePage() {
@@ -27,9 +27,9 @@ export default function HomePage() {
 
           {/* Main Grid Layout - 2/1 columns on desktop, stacked on mobile */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
-            {/* Left Column - Bets Table (67% on desktop) */}
+            {/* Left Column - Submissions (67% on desktop) */}
             <div className="lg:col-span-8 animate-slide-up">
-              <BetsTable />
+              <SubmissionsTable />
             </div>
 
             {/* Right Column - Leaderboard (33% on desktop) */}
@@ -51,7 +51,7 @@ export default function HomePage() {
               <div className="space-y-2">
                 <div className="text-accent font-bold text-lg">2. Get Judged</div>
                 <p className="text-sm text-muted-foreground">
-                  GenLayer validators run an AI judge and agree on a score plus feedback.
+                  Independent GenLayer validators read your work, score it, and must agree on the judgment.
                 </p>
               </div>
               <div className="space-y-2">

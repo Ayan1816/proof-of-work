@@ -1,12 +1,12 @@
 "use client";
 
 import { Trophy, Medal, Award, Loader2, AlertCircle } from "lucide-react";
-import { useLeaderboard, useFootballBetsContract } from "@/lib/hooks/useFootballBets";
+import { useLeaderboard, useRoyArenaContract } from "@/lib/hooks/useRoyArena";
 import { useWallet } from "@/lib/genlayer/wallet";
 import { AddressDisplay } from "./AddressDisplay";
 
 export function Leaderboard() {
-  const contract = useFootballBetsContract();
+  const contract = useRoyArenaContract();
   const { data: leaderboard, isLoading, isError } = useLeaderboard();
   const { address } = useWallet();
 

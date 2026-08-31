@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Plus, Loader2, Sparkles } from "lucide-react";
-import { useCreateBet } from "@/lib/hooks/useFootballBets";
+import { useSubmitEntry } from "@/lib/hooks/useRoyArena";
 import type { FeePresetLevel } from "@/lib/genlayer/fees";
 import type { ArenaCategory } from "@/lib/contracts/types";
 import { useWallet } from "@/lib/genlayer/wallet";
@@ -20,9 +20,9 @@ import { Label } from "./ui/label";
 
 const CATEGORIES: ArenaCategory[] = ["Startup", "Meme", "Poem"];
 
-export function CreateBetModal() {
+export function SubmitModal() {
   const { isConnected, address, isLoading } = useWallet();
-  const { createBet, isCreating, isSuccess } = useCreateBet();
+  const { submitEntry, isCreating, isSuccess } = useSubmitEntry();
 
   const [isOpen, setIsOpen] = useState(false);
   const [category, setCategory] = useState<ArenaCategory | "">("");
@@ -64,7 +64,7 @@ export function CreateBetModal() {
       return;
     }
 
-    createBet({
+    submitEntry({
       category,
       content: content.trim(),
       feePresetLevel,
@@ -103,7 +103,7 @@ export function CreateBetModal() {
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold">Submit to Roy Arena</DialogTitle>
           <DialogDescription>
-            The on-chain AI judge scores your Startup, Meme, or Poem.
+            Independent GenLayer validators read your Startup, Meme, or Poem and agree on a score.
           </DialogDescription>
         </DialogHeader>
 

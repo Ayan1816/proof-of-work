@@ -2,14 +2,14 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import FootballBets from "../contracts/FootballBets";
+import RoyArena from "../contracts/RoyArena";
 import { getContractAddress, getStudioUrl } from "../genlayer/client";
 import type { FeePresetLevel } from "../genlayer/fees";
 import { useWallet } from "../genlayer/wallet";
 import { success, error, configError } from "../utils/toast";
 import type { ArenaCategory, LeaderboardEntry, Submission } from "../contracts/types";
 
-export function useFootballBetsContract(): FootballBets | null {
+export function useRoyArenaContract(): RoyArena | null {
   const { address } = useWallet();
   const contractAddress = getContractAddress();
   const studioUrl = getStudioUrl();
@@ -27,14 +27,14 @@ export function useFootballBetsContract(): FootballBets | null {
       return null;
     }
 
-    return new FootballBets(contractAddress, address, studioUrl);
+    return new RoyArena(contractAddress, address, studioUrl);
   }, [contractAddress, address, studioUrl]);
 
   return contract;
 }
 
-export function useBets() {
-  const contract = useFootballBetsContract();
+export function useSubmissions() {
+  const contract = useRoyArenaContract();
 
   return useQuery<Submission[], Error>({
     queryKey: ["submissions"],
@@ -52,7 +52,7 @@ export function useBets() {
 }
 
 export function usePlayerPoints(address: string | null) {
-  const contract = useFootballBetsContract();
+  const contract = useRoyArenaContract();
 
   return useQuery<number, Error>({
     queryKey: ["playerPoints", address],
@@ -70,7 +70,7 @@ export function usePlayerPoints(address: string | null) {
 }
 
 export function useLeaderboard() {
-  const contract = useFootballBetsContract();
+  const contract = useRoyArenaContract();
 
   return useQuery<LeaderboardEntry[], Error>({
     queryKey: ["leaderboard"],
@@ -87,8 +87,8 @@ export function useLeaderboard() {
   });
 }
 
-export function useCreateBet() {
-  const contract = useFootballBetsContract();
+export function useSubmitEntry() {
+  const contract = useRoyArenaContract();
   const { address } = useWallet();
   const queryClient = useQueryClient();
   const [isCreating, setIsCreating] = useState(false);
@@ -153,7 +153,7 @@ export function useCreateBet() {
   return {
     ...mutation,
     isCreating,
-    createBet: mutation.mutate,
-    createBetAsync: mutation.mutateAsync,
+    submitEntry: mutation.mutate,
+    submitEntryAsync: mutation.mutateAsync,
   };
 }

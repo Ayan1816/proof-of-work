@@ -1,15 +1,15 @@
 "use client";
 
 import { Loader2, Trophy, AlertCircle } from "lucide-react";
-import { useBets, useFootballBetsContract } from "@/lib/hooks/useFootballBets";
+import { useSubmissions, useRoyArenaContract } from "@/lib/hooks/useRoyArena";
 import { useWallet } from "@/lib/genlayer/wallet";
 import { AddressDisplay } from "./AddressDisplay";
 import { Badge } from "./ui/badge";
 import type { Submission } from "@/lib/contracts/types";
 
-export function BetsTable() {
-  const contract = useFootballBetsContract();
-  const { data: submissions, isLoading, isError } = useBets();
+export function SubmissionsTable() {
+  const contract = useRoyArenaContract();
+  const { data: submissions, isLoading, isError } = useSubmissions();
   const { address } = useWallet();
 
   if (isLoading) {
