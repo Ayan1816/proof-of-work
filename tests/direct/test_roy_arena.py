@@ -134,7 +134,7 @@ def test_validator_agrees_when_independent_score_is_close(
     contract.submit_and_judge(alice, "Meme", MEME)
     assert direct_vm._captured_validators, "Validator was not captured"
 
-    # Independent judge lands nearby (within SCORE_TOLERANCE of 2).
+    # Independent judge lands nearby (within SCORE_TOLERANCE of 3).
     direct_vm.clear_mocks()
     direct_vm.mock_llm(r".*", _verdict(7, "Witty enough, with a solid chain punchline."))
     assert direct_vm.run_validator() is True
@@ -182,3 +182,63 @@ def test_validator_rejects_placeholder_feedback(direct_vm, direct_deploy, direct
     direct_vm.clear_mocks()
     direct_vm.mock_llm(r".*", _verdict(8, "No feedback"))
     assert direct_vm.run_validator() is False
+
+
+def test_float_score_from_llm_is_persisted(direct_vm, direct_deploy, direct_alice):
+    """LLM JSON often yields 8.0 instead of 8. That must still commit."""
+    contract = direct_deploy(CONTRACT_PATH)
+    direct_vm.sender = direct_alice
+    alice = to_hex(direct_alice)
+
+    direct_vm.mock_llm(
+        r".*",
+        json.dumps(
+            {"is_valid": True, "score": 8.0, "feedback": "Sharp and funny chain joke."}
+        ),
+    )
+    parsed = json.loads(contract.submit_and_judge(alice, "Meme", MEME))
+    assert parsed["status"] == "Success"
+    assert parsed["score"] == 8
+    assert len(contract.get_leaderboard()) == 1
+    assert contract.get_submission_count() == 1
+
+
+def test_validator_agrees_when_score_diff_is_within_tolerance(
+    direct_vm, direct_deploy, direct_alice
+):
+    contract = direct_deploy(CONTRACT_PATH)
+    direct_vm.sender = direct_alice
+    alice = to_hex(direct_alice)
+
+    direct_vm.mock_llm(r".*", _verdict(8, "Sharp and funny chain joke."))
+    contract.submit_and_judge(alice, "Meme", MEME)
+
+    direct_vm.clear_mocks()
+    direct_vm.mock_llm(r".*", _verdict(5, "The joke works, even if the punchline is mild."))
+    assert direct_vm.run_validator() is True
+
+
+def test_more_than_two_valid_submissions_all_persist(
+    direct_vm, direct_deploy, direct_alice
+):
+    contract = direct_deploy(CONTRACT_PATH)
+    direct_vm.sender = direct_alice
+    alice = to_hex(direct_alice)
+
+    _submit(contract, direct_vm, alice, "Meme", MEME, 8, "Sharp and funny chain joke.")
+    _submit(contract, direct_vm, alice, "Poem", POEM, 6, "Nice rhythm and a clean closing image.")
+    _submit(
+        contract,
+        direct_vm,
+        alice,
+        "Startup",
+        STARTUP,
+        7,
+        "Clear problem and a practical GPU marketplace.",
+    )
+
+    board = contract.get_leaderboard()
+    assert len(board) == 3
+    assert contract.get_submission_count() == 3
+    assert contract.get_player_points(alice) == 21
+    assert {item["category"] for item in board.values()} == {"Meme", "Poem", "Startup"}

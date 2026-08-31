@@ -79,7 +79,7 @@ export function Leaderboard() {
       </h2>
 
       <div className="space-y-2">
-        {leaderboard.map((entry, index) => {
+        {leaderboard.slice(0, 10).map((entry, index) => {
           const isCurrentUser = address?.toLowerCase() === entry.address?.toLowerCase();
           const rank = index + 1;
 

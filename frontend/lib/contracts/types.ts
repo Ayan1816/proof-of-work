@@ -19,8 +19,10 @@ export interface TransactionReceipt {
   statusName?: string;
   txExecutionResultName?: string;
   judgment?: {
+    id?: string;
     score?: number;
     feedback?: string;
+    status?: string;
   };
   [key: string]: any;
 }

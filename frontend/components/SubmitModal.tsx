@@ -22,7 +22,7 @@ const CATEGORIES: ArenaCategory[] = ["Startup", "Meme", "Poem"];
 
 export function SubmitModal() {
   const { isConnected, address, isLoading } = useWallet();
-  const { submitEntry, isCreating, isSuccess } = useSubmitEntry();
+  const { submitEntry, isCreating, reset } = useSubmitEntry();
 
   const [isOpen, setIsOpen] = useState(false);
   const [category, setCategory] = useState<ArenaCategory | "">("");
@@ -64,11 +64,20 @@ export function SubmitModal() {
       return;
     }
 
-    submitEntry({
-      category,
-      content: content.trim(),
-      feePresetLevel,
-    });
+    submitEntry(
+      {
+        category,
+        content: content.trim(),
+        feePresetLevel,
+      },
+      {
+        onSuccess: () => {
+          resetForm();
+          setIsOpen(false);
+          reset();
+        },
+      }
+    );
   };
 
   const resetForm = () => {
@@ -80,16 +89,10 @@ export function SubmitModal() {
   const handleOpenChange = (open: boolean) => {
     if (!open && !isCreating) {
       resetForm();
+      reset();
     }
     setIsOpen(open);
   };
-
-  useEffect(() => {
-    if (isSuccess) {
-      resetForm();
-      setIsOpen(false);
-    }
-  }, [isSuccess]);
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>

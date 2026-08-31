@@ -13,8 +13,8 @@ import json
 
 ALLOWED_CATEGORIES = ("Startup", "Meme", "Poem")
 MIN_CONTENT_LEN = 20
-MIN_FEEDBACK_LEN = 12
-SCORE_TOLERANCE = 2
+MIN_FEEDBACK_LEN = 8
+SCORE_TOLERANCE = 3
 PLACEHOLDER_FEEDBACK = {
     "no feedback",
     "n/a",
@@ -65,16 +65,39 @@ def _as_bool(value):
     return None
 
 
+def _first_integer(text: str):
+    digits = ""
+    for ch in str(text):
+        if ch.isdigit():
+            digits += ch
+        elif digits:
+            break
+    if not digits:
+        return None
+    return int(digits)
+
+
 def _as_score(value):
+    """Accept int/float/'8'/'8.0'/'8/10'. Reject bools and out-of-range values."""
     if isinstance(value, bool):
         return None
+    score = None
     if isinstance(value, int):
         score = value
-    else:
-        try:
-            score = int(str(value).strip())
-        except (TypeError, ValueError):
+    elif isinstance(value, float):
+        if value != value:  # NaN
             return None
+        score = int(round(value))
+    else:
+        text = str(value).strip()
+        if "/" in text:
+            text = text.split("/", 1)[0].strip()
+        try:
+            score = int(round(float(text)))
+        except (TypeError, ValueError):
+            score = _first_integer(text)
+            if score is None:
+                return None
     if score < 1 or score > 10:
         return None
     return score
@@ -87,7 +110,7 @@ def _feedback_is_substantive(feedback: str) -> bool:
     return cleaned.lower() not in PLACEHOLDER_FEEDBACK
 
 
-def _try_parse_verdict(raw):
+def _try_parse_verdict(raw, *, require_substantive_feedback: bool = True):
     """Parse an AI verdict. Returns None when the result is not a real judgment."""
     if isinstance(raw, str):
         text = raw.strip().replace("```json", "").replace("```", "").strip()
@@ -110,12 +133,15 @@ def _try_parse_verdict(raw):
         return None
 
     feedback = str(raw.get("feedback", "")).strip()
-    if not _feedback_is_substantive(feedback):
+    if require_substantive_feedback:
+        if not _feedback_is_substantive(feedback):
+            return None
+    elif not feedback:
         return None
 
     return {
-        "is_valid": is_valid,
-        "score": score,
+        "is_valid": bool(is_valid),
+        "score": int(score),
         "feedback": feedback,
     }
 
@@ -132,8 +158,9 @@ def _build_judge_prompt(category: str, content: str) -> str:
         f'"""{content}"""\n\n'
         f"If the text is spam, gibberish, off-topic for {category}, or too "
         "low-effort to judge, set is_valid to false and score 1.\n"
-        "Otherwise score it from 1 (very poor) to 10 (outstanding) using only "
-        "the criteria above.\n"
+        "Otherwise set is_valid to true and score it from 1 (very poor) to 10 "
+        "(outstanding) using only the criteria above.\n"
+        "score MUST be a whole integer from 1 to 10, never a float or a fraction.\n"
         "Feedback must mention a specific strength or weakness of THIS "
         "submission, never generic praise.\n\n"
         "Reply with JSON only:\n"
@@ -143,13 +170,14 @@ def _build_judge_prompt(category: str, content: str) -> str:
 
 def _same_judgment(leader: dict, independent: dict) -> bool:
     """Accept the leader only when an independent evaluation agrees on substance."""
-    if leader["is_valid"] != independent["is_valid"]:
+    if bool(leader["is_valid"]) != bool(independent["is_valid"]):
         return False
-    if abs(leader["score"] - independent["score"]) > SCORE_TOLERANCE:
+    if abs(int(leader["score"]) - int(independent["score"])) > SCORE_TOLERANCE:
         return False
     if not _feedback_is_substantive(leader["feedback"]):
         return False
-    if not _feedback_is_substantive(independent["feedback"]):
+    # Independent wording can be shorter, but placeholder rubber-stamps are not a judgment.
+    if independent["feedback"].strip().lower() in PLACEHOLDER_FEEDBACK:
         return False
     return True
 
@@ -178,6 +206,18 @@ class RoyJudgeArena(gl.Contract):
     def __init__(self):
         self.total = u256(0)
         self.subs = TreeMap()
+
+    def _append_submission(self, user: str, cat: str, content: str, score: int, feedback: str) -> str:
+        self.total = u256(int(self.total) + 1)
+        sub_id = str(int(self.total))
+        self.subs[sub_id] = Submission(
+            user=user,
+            category=cat,
+            content=content,
+            score=u256(score),
+            feedback=feedback,
+        )
+        return sub_id
 
     @gl.public.write
     def submit_and_judge(self, user_addr: str, cat: str, content: str) -> str:
@@ -210,7 +250,12 @@ class RoyJudgeArena(gl.Contract):
                     _build_judge_prompt(cat, content),
                     response_format="json",
                 )
-                independent = _try_parse_verdict(raw)
+                # Independent wording varies; score + validity are the consensus
+                # signal. Do not drop a matching score just because feedback is
+                # shorter than the leader's sentence.
+                independent = _try_parse_verdict(
+                    raw, require_substantive_feedback=False
+                )
             except Exception:
                 return False
             if independent is None:
@@ -218,35 +263,29 @@ class RoyJudgeArena(gl.Contract):
             return _same_judgment(leader, independent)
 
         verdict = glvm.run_nondet_unsafe.lazy(leader_fn, validator_fn).get()
-        if not verdict.get("is_valid", False):
+        parsed = _try_parse_verdict(verdict)
+        if parsed is None:
+            raise Exception("Failed to parse AI verdict. Please try again.")
+        if not parsed["is_valid"]:
             raise Exception("Submission rejected by AI: Deemed as spam or irrelevant.")
 
-        score = int(verdict["score"])
-        feedback = str(verdict["feedback"])
         user = _sender_hex() or user_addr
-
-        self.total = u256(int(self.total) + 1)
-        sub_id = str(int(self.total))
-        self.subs[sub_id] = Submission(
-            user=user,
-            category=cat,
-            content=content,
-            score=u256(score),
-            feedback=feedback,
+        sub_id = self._append_submission(
+            user, cat, content, parsed["score"], parsed["feedback"]
         )
         return json.dumps(
             {
                 "status": "Success",
                 "id": sub_id,
-                "score": score,
-                "feedback": feedback,
+                "score": parsed["score"],
+                "feedback": parsed["feedback"],
             },
             sort_keys=True,
         )
 
     @gl.public.view
     def get_submission(self, sub_id: str) -> dict:
-        sub = self.subs.get(sub_id)
+        sub = self.subs.get(str(sub_id))
         if sub is None:
             raise Exception("Submission not found.")
         return _submission_to_dict(sub)
@@ -261,8 +300,14 @@ class RoyJudgeArena(gl.Contract):
         return total
 
     @gl.public.view
+    def get_submission_count(self) -> int:
+        return int(self.total)
+
+    @gl.public.view
     def get_leaderboard(self) -> dict:
         out = {}
         for key, sub in self.subs.items():
-            out[str(key)] = _submission_to_dict(sub)
+            item = _submission_to_dict(sub)
+            item["id"] = str(key)
+            out[str(key)] = item
         return out

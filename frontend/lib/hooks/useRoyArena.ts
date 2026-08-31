@@ -127,11 +127,10 @@ export function useSubmitEntry() {
         queryClient.invalidateQueries({ queryKey: ["leaderboard"] }),
       ]);
       await Promise.all([
-        queryClient.refetchQueries({ queryKey: ["submissions"] }),
-        queryClient.refetchQueries({ queryKey: ["playerPoints"] }),
-        queryClient.refetchQueries({ queryKey: ["leaderboard"] }),
+        queryClient.refetchQueries({ queryKey: ["submissions"], type: "all" }),
+        queryClient.refetchQueries({ queryKey: ["playerPoints"], type: "all" }),
+        queryClient.refetchQueries({ queryKey: ["leaderboard"], type: "all" }),
       ]);
-      setIsCreating(false);
       const score = receipt?.judgment?.score;
       const feedback = receipt?.judgment?.feedback;
       success("Submission judged!", {
@@ -143,10 +142,12 @@ export function useSubmitEntry() {
     },
     onError: (err: any) => {
       console.error("Error submitting entry:", err);
-      setIsCreating(false);
       error("Failed to submit entry", {
         description: err?.message || "Please try again.",
       });
+    },
+    onSettled: () => {
+      setIsCreating(false);
     },
   });
 

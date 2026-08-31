@@ -21,6 +21,31 @@ const FAILED_TX_STATUSES = new Set([
   "VALIDATORS_TIMEOUT",
 ]);
 
+const COMMITTED_TX_STATUSES = new Set([
+  "ACCEPTED",
+  "FINALIZED",
+  "READY_TO_FINALIZE",
+]);
+
+const FAILED_TX_RESULTS = new Set([
+  "MAJORITY_DISAGREE",
+  "NO_MAJORITY",
+  "DETERMINISTIC_VIOLATION",
+  "DISAGREE",
+  "TIMEOUT",
+  "FAILURE",
+]);
+
+const STATUS_BY_NUMBER: Record<string, string> = {
+  "5": "ACCEPTED",
+  "6": "UNDETERMINED",
+  "7": "FINALIZED",
+  "8": "CANCELED",
+  "11": "READY_TO_FINALIZE",
+  "12": "VALIDATORS_TIMEOUT",
+  "13": "LEADER_TIMEOUT",
+};
+
 function asRecord(value: unknown): Record<string, unknown> {
   if (!value) return {};
   if (value instanceof Map) {
@@ -37,7 +62,21 @@ function asRecord(value: unknown): Record<string, unknown> {
     }
   }
   if (Array.isArray(value)) {
-    return Object.fromEntries(value.entries());
+    const pairEntries = value.every(
+      (item) =>
+        Array.isArray(item) &&
+        item.length === 2 &&
+        (typeof item[0] === "string" || typeof item[0] === "number")
+    );
+    if (pairEntries) {
+      return Object.fromEntries(
+        (value as Array<[string | number, unknown]>).map(([key, val]) => [
+          String(key),
+          val,
+        ])
+      );
+    }
+    return Object.fromEntries(value.map((item, index) => [String(index), item]));
   }
   if (typeof value === "object") {
     return value as Record<string, unknown>;
@@ -45,15 +84,28 @@ function asRecord(value: unknown): Record<string, unknown> {
   return {};
 }
 
+function asText(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "bigint") return String(value);
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    if (typeof record.as_hex === "string") return record.as_hex;
+    if (typeof record.asHex === "string") return record.asHex;
+  }
+  return String(value);
+}
+
 function asSubmission(id: string, value: unknown): Submission {
   const raw = asRecord(value);
+  const nestedId = asText(raw.id).trim();
   return {
-    id,
-    user: String(raw.user ?? ""),
-    category: String(raw.category ?? ""),
-    content: String(raw.content ?? ""),
+    id: nestedId || id,
+    user: asText(raw.user ?? raw.author ?? ""),
+    category: asText(raw.category ?? ""),
+    content: asText(raw.content ?? ""),
     score: Number(raw.score ?? 0) || 0,
-    feedback: String(raw.feedback ?? ""),
+    feedback: asText(raw.feedback ?? ""),
   };
 }
 
@@ -74,12 +126,19 @@ function collectTextBlobs(value: unknown, out: string[], depth = 0): void {
   }
 }
 
-function extractJudgment(receipt: any): { score?: number; feedback?: string } {
+function extractJudgment(receipt: any): {
+  id?: string;
+  score?: number;
+  feedback?: string;
+  status?: string;
+} {
   const blobs: string[] = [];
   const leader = receipt?.consensus_data?.leader_receipt;
   collectTextBlobs(leader, blobs);
   collectTextBlobs(receipt?.result, blobs);
+  collectTextBlobs(receipt?.data, blobs);
 
+  let best: { id?: string; score?: number; feedback?: string; status?: string } = {};
   for (const blob of blobs) {
     const start = blob.indexOf("{");
     const end = blob.lastIndexOf("}");
@@ -88,38 +147,104 @@ function extractJudgment(receipt: any): { score?: number; feedback?: string } {
       const parsed = JSON.parse(blob.slice(start, end + 1));
       const score = Number(parsed.score ?? parsed.score_out_of_10);
       const feedback = parsed.feedback != null ? String(parsed.feedback) : undefined;
-      if (Number.isFinite(score) || feedback) {
-        return {
-          ...(Number.isFinite(score) ? { score } : {}),
-          ...(feedback ? { feedback } : {}),
-        };
+      const id = parsed.id != null ? String(parsed.id) : undefined;
+      const status = parsed.status != null ? String(parsed.status) : undefined;
+      const candidate = {
+        ...(Number.isFinite(score) ? { score } : {}),
+        ...(feedback ? { feedback } : {}),
+        ...(id ? { id } : {}),
+        ...(status ? { status } : {}),
+      };
+      if (candidate.id || candidate.status === "Success") {
+        return candidate;
+      }
+      if ((candidate.score != null || candidate.feedback) && !best.score && !best.feedback) {
+        best = candidate;
       }
     } catch {
       // Keep scanning other blobs.
     }
   }
-  return {};
+  return best;
+}
+
+function normalizeStatus(value: unknown): string {
+  if (value == null || value === "") return "";
+  const raw = String(value).toUpperCase();
+  if (STATUS_BY_NUMBER[String(value)]) {
+    return STATUS_BY_NUMBER[String(value)];
+  }
+  return raw;
+}
+
+function readStatus(receipt: any): string {
+  return normalizeStatus(
+    receipt?.statusName || receipt?.status_name || receipt?.status
+  );
+}
+
+function readExecution(receipt: any): string {
+  const named =
+    receipt?.txExecutionResultName || receipt?.tx_execution_result_name;
+  if (named) return String(named).toUpperCase();
+
+  const leader = receipt?.consensus_data?.leader_receipt;
+  const rec = Array.isArray(leader) ? leader[0] : leader;
+  const fromLeader = rec?.execution_result;
+  if (!fromLeader) return "";
+  const upper = String(fromLeader).toUpperCase();
+  if (upper === "SUCCESS") return ExecutionResult.FINISHED_WITH_RETURN;
+  if (upper === "ERROR") return ExecutionResult.FINISHED_WITH_ERROR;
+  return upper;
+}
+
+function readResult(receipt: any): string {
+  return String(
+    receipt?.resultName || receipt?.result_name || ""
+  ).toUpperCase();
+}
+
+function leaderErrorDetail(receipt: any, fallback: string): string {
+  const leader = receipt?.consensus_data?.leader_receipt;
+  const rec = Array.isArray(leader) ? leader[0] : leader;
+  const payload = rec?.result?.payload ?? rec?.result;
+  if (typeof payload === "string" && payload.trim()) return payload;
+  if (typeof rec?.error === "string" && rec.error.trim()) return rec.error;
+  if (typeof rec?.execution_result === "string") return rec.execution_result;
+  return fallback;
 }
 
 function assertSuccessfulReceipt(receipt: any): void {
-  const statusName = String(receipt?.statusName || "").toUpperCase();
-  if (FAILED_TX_STATUSES.has(statusName)) {
+  const statusName = readStatus(receipt);
+  if (!statusName || FAILED_TX_STATUSES.has(statusName)) {
     throw new Error(
-      `The AI judge did not reach consensus (${statusName}). Your score was not saved. Please try again.`
+      `The AI judge did not reach consensus (${statusName || "UNKNOWN"}). Your score was not saved. Please try again.`
+    );
+  }
+  if (!COMMITTED_TX_STATUSES.has(statusName)) {
+    throw new Error(
+      `Submission is not committed yet (${statusName}). Your score was not saved. Please try again.`
     );
   }
 
-  const execution = receipt?.txExecutionResultName;
-  if (execution && execution !== ExecutionResult.FINISHED_WITH_RETURN) {
-    const leader = receipt?.consensus_data?.leader_receipt;
-    const rec = Array.isArray(leader) ? leader[0] : leader;
-    const payload = rec?.result?.payload;
-    const detail =
-      typeof payload === "string"
-        ? payload
-        : rec?.error || rec?.execution_result || execution;
-    throw new Error(`Contract execution failed: ${detail}`);
+  const resultName = readResult(receipt);
+  if (resultName && FAILED_TX_RESULTS.has(resultName)) {
+    throw new Error(
+      `Validators disagreed on this judgment (${resultName}). Your score was not saved. Please try again.`
+    );
   }
+
+  const execution = readExecution(receipt);
+  if (execution && execution !== ExecutionResult.FINISHED_WITH_RETURN) {
+    throw new Error(
+      `Contract execution failed: ${leaderErrorDetail(receipt, execution)}`
+    );
+  }
+}
+
+function boardHasId(board: Record<string, unknown>, id: string): boolean {
+  if (Object.prototype.hasOwnProperty.call(board, id)) return true;
+  return Object.keys(board).some((key) => String(key) === String(id));
 }
 
 function buildClient(address?: string | null, studioUrl?: string) {
@@ -256,16 +381,30 @@ class RoyArena {
     const receipt = await this.client.waitForTransactionReceipt({
       hash: txHash,
       status: TransactionStatus.ACCEPTED,
-      retries: 60,
+      retries: 80,
       interval: 5000,
     });
 
     assertSuccessfulReceipt(receipt);
 
+    const judgment = extractJudgment(receipt);
+    if (judgment.id) {
+      let board = await this.readLeaderboardRaw();
+      if (!boardHasId(board, judgment.id)) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        board = await this.readLeaderboardRaw();
+      }
+      if (!boardHasId(board, judgment.id)) {
+        throw new Error(
+          "The AI judge scored your entry, but validators did not commit it to the arena. Please try again."
+        );
+      }
+    }
+
     return {
       ...(receipt as TransactionReceipt),
       hash: (receipt as any)?.hash || txHash,
-      judgment: extractJudgment(receipt),
+      judgment,
     };
   }
 }

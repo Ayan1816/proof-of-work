@@ -34,6 +34,12 @@ roy_arena_contract_schema = {
                 "readonly": True,
                 "ret": "dict",
             },
+            "get_submission_count": {
+                "kwparams": {},
+                "params": [],
+                "readonly": True,
+                "ret": "int",
+            },
         },
     },
 }
