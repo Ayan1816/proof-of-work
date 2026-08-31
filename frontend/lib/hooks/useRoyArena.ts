@@ -142,8 +142,13 @@ export function useSubmitEntry() {
     },
     onError: (err: any) => {
       console.error("Error submitting entry:", err);
-      error("Failed to submit entry", {
-        description: err?.message || "Please try again.",
+      const message =
+        err?.shortMessage ||
+        err?.cause?.message ||
+        err?.message ||
+        "The submission did not save. Please try again.";
+      error("Submission failed", {
+        description: message,
       });
     },
     onSettled: () => {

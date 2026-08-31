@@ -85,9 +85,9 @@ export function SubmissionsTable() {
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
-            {submissions.map((item) => (
+            {submissions.map((item, index) => (
               <SubmissionRow
-                key={item.id}
+                key={`${item.id}-${item.category}-${index}`}
                 submission={item}
                 currentAddress={address}
               />

@@ -189,6 +189,10 @@ def _sender_hex() -> str:
     return str(sender)
 
 
+def _norm_addr(addr: str) -> str:
+    return str(addr or "").strip().lower()
+
+
 def _submission_to_dict(sub: Submission) -> dict:
     return {
         "user": sub.user,
@@ -201,22 +205,41 @@ def _submission_to_dict(sub: Submission) -> dict:
 
 class RoyJudgeArena(gl.Contract):
     total: u256
-    subs: TreeMap[str, Submission]
+    # Append-only list so a second meme/poem from the same wallet is stored
+    # as a new row instead of replacing the previous one.
+    subs: DynArray[Submission]
+    player_points: TreeMap[str, u256]
 
     def __init__(self):
         self.total = u256(0)
-        self.subs = TreeMap()
+        self.player_points = TreeMap()
+
+    def _item(self, sub: Submission, sub_id: str) -> dict:
+        item = _submission_to_dict(sub)
+        item["id"] = str(sub_id)
+        return item
+
+    def _add_points(self, user: str, score: int) -> None:
+        key = _norm_addr(user)
+        if not key:
+            return
+        existing = self.player_points.get(key)
+        current = int(existing) if existing is not None else 0
+        self.player_points[key] = u256(current + int(score))
 
     def _append_submission(self, user: str, cat: str, content: str, score: int, feedback: str) -> str:
-        self.total = u256(int(self.total) + 1)
-        sub_id = str(int(self.total))
-        self.subs[sub_id] = Submission(
-            user=user,
-            category=cat,
-            content=content,
-            score=u256(score),
-            feedback=feedback,
+        self.subs.append(
+            Submission(
+                user=user,
+                category=cat,
+                content=content,
+                score=u256(score),
+                feedback=feedback,
+            )
         )
+        sub_id = str(len(self.subs))
+        self.total = u256(len(self.subs))
+        self._add_points(user, score)
         return sub_id
 
     @gl.public.write
@@ -283,31 +306,70 @@ class RoyJudgeArena(gl.Contract):
             sort_keys=True,
         )
 
+    def _parse_sub_index(self, sub_id: str) -> int:
+        text = str(sub_id).strip()
+        if text.startswith("id_"):
+            text = text[3:]
+        try:
+            idx = int(text)
+        except (TypeError, ValueError):
+            raise Exception("Submission not found.")
+        if idx < 1 or idx > len(self.subs):
+            raise Exception("Submission not found.")
+        return idx - 1
+
     @gl.public.view
     def get_submission(self, sub_id: str) -> dict:
-        sub = self.subs.get(str(sub_id))
-        if sub is None:
-            raise Exception("Submission not found.")
-        return _submission_to_dict(sub)
+        idx = self._parse_sub_index(sub_id)
+        return self._item(self.subs[idx], str(idx + 1))
 
     @gl.public.view
     def get_player_points(self, player_address: str) -> int:
-        target = player_address.lower()
+        target = _norm_addr(player_address)
+        stored = self.player_points.get(target)
+        if stored is not None:
+            return int(stored)
         total = 0
-        for sub in self.subs.values():
-            if sub.user.lower() == target:
+        for sub in self.subs:
+            if _norm_addr(sub.user) == target:
                 total += int(sub.score)
         return total
 
     @gl.public.view
     def get_submission_count(self) -> int:
-        return int(self.total)
+        return len(self.subs)
+
+    @gl.public.view
+    def get_submissions(self) -> list:
+        """Return every judged entry, including multiple from the same wallet."""
+        out = []
+        idx = 1
+        for sub in self.subs:
+            out.append(self._item(sub, str(idx)))
+            idx += 1
+        return out
+
+    @gl.public.view
+    def get_points_board(self) -> dict:
+        out = {}
+        for addr, pts in self.player_points.items():
+            out[str(addr)] = int(pts)
+        if out:
+            return out
+        # Fallback for empty map: derive from the append-only list.
+        for sub in self.subs:
+            key = _norm_addr(sub.user)
+            if not key:
+                continue
+            out[key] = int(out.get(key, 0)) + int(sub.score)
+        return out
 
     @gl.public.view
     def get_leaderboard(self) -> dict:
         out = {}
-        for key, sub in self.subs.items():
-            item = _submission_to_dict(sub)
-            item["id"] = str(key)
-            out[str(key)] = item
+        idx = 1
+        for sub in self.subs:
+            sid = str(idx)
+            out[sid] = self._item(sub, sid)
+            idx += 1
         return out

@@ -22,13 +22,14 @@ const CATEGORIES: ArenaCategory[] = ["Startup", "Meme", "Poem"];
 
 export function SubmitModal() {
   const { isConnected, address, isLoading } = useWallet();
-  const { submitEntry, isCreating, reset } = useSubmitEntry();
+  const { submitEntryAsync, isCreating, reset } = useSubmitEntry();
 
   const [isOpen, setIsOpen] = useState(false);
   const [category, setCategory] = useState<ArenaCategory | "">("");
   const [content, setContent] = useState("");
   const [feePresetLevel, setFeePresetLevel] = useState<FeePresetLevel>("standard");
   const [errors, setErrors] = useState({ category: "", content: "" });
+  const [submitError, setSubmitError] = useState("");
 
   useEffect(() => {
     if (!isConnected && isOpen && !isCreating) {
@@ -64,26 +65,31 @@ export function SubmitModal() {
       return;
     }
 
-    submitEntry(
-      {
+    setSubmitError("");
+    try {
+      await submitEntryAsync({
         category,
         content: content.trim(),
         feePresetLevel,
-      },
-      {
-        onSuccess: () => {
-          resetForm();
-          setIsOpen(false);
-          reset();
-        },
-      }
-    );
+      });
+      resetForm();
+      setIsOpen(false);
+      reset();
+    } catch (err: any) {
+      setSubmitError(
+        err?.shortMessage ||
+          err?.cause?.message ||
+          err?.message ||
+          "The submission did not save. Please try again."
+      );
+    }
   };
 
   const resetForm = () => {
     setCategory("");
     setContent("");
     setErrors({ category: "", content: "" });
+    setSubmitError("");
   };
 
   const handleOpenChange = (open: boolean) => {
@@ -186,6 +192,10 @@ export function SubmitModal() {
               ))}
             </div>
           </div>
+
+          {submitError && (
+            <p className="text-sm text-destructive">{submitError}</p>
+          )}
 
           <div className="flex gap-3 pt-4">
             <Button

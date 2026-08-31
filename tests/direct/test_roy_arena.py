@@ -27,6 +27,8 @@ def _submit(contract, vm, address, category, content, score=8, feedback="Sharp a
 def test_empty_leaderboard(direct_deploy):
     contract = direct_deploy(CONTRACT_PATH)
     assert contract.get_leaderboard() == {}
+    assert contract.get_submissions() == []
+    assert contract.get_points_board() == {}
 
 
 def test_submit_and_judge_persists_score(direct_vm, direct_deploy, direct_alice):
@@ -107,6 +109,10 @@ def test_points_accumulate_for_same_user(direct_vm, direct_deploy, direct_alice)
 
     assert contract.get_player_points(alice) == 14
     assert len(contract.get_leaderboard()) == 2
+    listed = contract.get_submissions()
+    assert len(listed) == 2
+    assert {item["id"] for item in listed} == {"1", "2"}
+    assert contract.get_points_board()[alice.lower()] == 14
 
 
 def test_get_submission_and_missing_id(direct_vm, direct_deploy, direct_alice):
@@ -118,6 +124,7 @@ def test_get_submission_and_missing_id(direct_vm, direct_deploy, direct_alice):
     stored = contract.get_submission(parsed["id"])
     assert stored["category"] == "Poem"
     assert stored["score"] == 9
+    assert stored["id"] == parsed["id"]
 
     with direct_vm.expect_revert("Submission not found"):
         contract.get_submission("999")
@@ -238,7 +245,13 @@ def test_more_than_two_valid_submissions_all_persist(
     )
 
     board = contract.get_leaderboard()
+    listed = contract.get_submissions()
     assert len(board) == 3
+    assert isinstance(listed, list)
+    assert len(listed) == 3
     assert contract.get_submission_count() == 3
     assert contract.get_player_points(alice) == 21
+    assert contract.get_points_board()[alice.lower()] == 21
     assert {item["category"] for item in board.values()} == {"Meme", "Poem", "Startup"}
+    assert {item["category"] for item in listed} == {"Meme", "Poem", "Startup"}
+    assert len({item["id"] for item in listed}) == 3

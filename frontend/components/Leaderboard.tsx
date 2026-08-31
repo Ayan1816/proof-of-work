@@ -85,7 +85,7 @@ export function Leaderboard() {
 
           return (
             <div
-              key={entry.address}
+              key={`${entry.address}-${index}`}
               className={`
                 flex items-center gap-3 p-3 rounded-lg transition-all
                 ${isCurrentUser ? "bg-accent/20 border-2 border-accent/50" : "hover:bg-white/5"}

@@ -96,7 +96,9 @@ def test_second_submission_accumulates_points():
     assert tx_execution_succeeded(second)
 
     board = contract.get_leaderboard(args=[])
+    listed = contract.get_submissions(args=[])
     assert len(board) == 2
+    assert len(listed) == 2
     total = sum(int(item["score"]) for item in board.values())
     assert contract.get_player_points(args=[default_account.address]) == total
 

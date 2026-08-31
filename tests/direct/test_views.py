@@ -7,6 +7,8 @@ from tests.direct.test_roy_arena import CONTRACT_PATH, MEME, POEM, _submit
 def test_empty_leaderboard(direct_deploy):
     contract = direct_deploy(CONTRACT_PATH)
     assert contract.get_leaderboard() == {}
+    assert contract.get_submissions() == []
+    assert contract.get_points_board() == {}
     assert contract.get_submission_count() == 0
 
 
@@ -31,7 +33,11 @@ def test_points_accumulate(direct_vm, direct_deploy, direct_alice):
 
     assert contract.get_player_points(alice) == 14
     board = contract.get_leaderboard()
+    listed = contract.get_submissions()
     assert len(board) == 2
+    assert len(listed) == 2
     assert contract.get_submission_count() == 2
     scores = sorted(item["score"] for item in board.values())
     assert scores == [6, 8]
+    assert sorted(item["score"] for item in listed) == [6, 8]
+    assert contract.get_points_board()[alice.lower()] == 14

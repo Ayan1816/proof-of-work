@@ -62,19 +62,24 @@ function asRecord(value: unknown): Record<string, unknown> {
     }
   }
   if (Array.isArray(value)) {
-    const pairEntries = value.every(
-      (item) =>
-        Array.isArray(item) &&
-        item.length === 2 &&
-        (typeof item[0] === "string" || typeof item[0] === "number")
-    );
-    if (pairEntries) {
-      return Object.fromEntries(
-        (value as Array<[string | number, unknown]>).map(([key, val]) => [
-          String(key),
-          val,
-        ])
+    const pairEntries =
+      value.length > 0 &&
+      value.every(
+        (item) =>
+          Array.isArray(item) &&
+          item.length === 2 &&
+          (typeof item[0] === "string" || typeof item[0] === "number")
       );
+    if (pairEntries) {
+      const second = asRecord(value[0][1]);
+      if (second.user || second.content || second.category || second.id) {
+        return Object.fromEntries(
+          (value as Array<[string | number, unknown]>).map(([key, val]) => [
+            String(key),
+            val,
+          ])
+        );
+      }
     }
     return Object.fromEntries(value.map((item, index) => [String(index), item]));
   }
@@ -96,17 +101,75 @@ function asText(value: unknown): string {
   return String(value);
 }
 
-function asSubmission(id: string, value: unknown): Submission {
+function asSubmission(id: string, value: unknown, index = 0): Submission {
   const raw = asRecord(value);
   const nestedId = asText(raw.id).trim();
+  const fallback = id && id !== "undefined" && id !== "null" ? id : "";
   return {
-    id: nestedId || id,
+    id: nestedId || fallback || `row-${index}`,
     user: asText(raw.user ?? raw.author ?? ""),
     category: asText(raw.category ?? ""),
     content: asText(raw.content ?? ""),
     score: Number(raw.score ?? 0) || 0,
     feedback: asText(raw.feedback ?? ""),
   };
+}
+
+function looksLikeSubmission(value: unknown): boolean {
+  if (value == null || typeof value !== "object") return false;
+  const raw = asRecord(value);
+  return Boolean(raw.user || raw.author || raw.content || raw.category);
+}
+
+function collectSubmissions(raw: unknown): Submission[] {
+  if (raw == null || raw === "") return [];
+  if (typeof raw === "string") {
+    try {
+      return collectSubmissions(JSON.parse(raw));
+    } catch {
+      return [];
+    }
+  }
+  if (raw instanceof Map) {
+    return Array.from(raw.entries()).map(([id, value], index) =>
+      asSubmission(String(id), value, index)
+    );
+  }
+  if (Array.isArray(raw)) {
+    if (
+      raw.length > 0 &&
+      raw.every(
+        (item) =>
+          Array.isArray(item) &&
+          item.length === 2 &&
+          (typeof item[0] === "string" || typeof item[0] === "number") &&
+          looksLikeSubmission(item[1])
+      )
+    ) {
+      return (raw as Array<[string | number, unknown]>).map(([id, value], index) =>
+        asSubmission(String(id), value, index)
+      );
+    }
+    return raw
+      .map((item, index) => asSubmission(String(index + 1), item, index))
+      .filter((item) => item.user || item.content);
+  }
+  if (typeof raw === "object") {
+    return Object.entries(raw as Record<string, unknown>)
+      .filter(([, value]) => looksLikeSubmission(value) || typeof value === "object")
+      .map(([id, value], index) => asSubmission(id, value, index));
+  }
+  return [];
+}
+
+function submissionSortId(id: string): number {
+  const digits = String(id).match(/\d+/);
+  if (!digits) return 0;
+  return Number(digits[0]) || 0;
+}
+
+function sameWallet(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
 function collectTextBlobs(value: unknown, out: string[], depth = 0): void {
@@ -137,7 +200,10 @@ function extractJudgment(receipt: any): {
   collectTextBlobs(leader, blobs);
   collectTextBlobs(receipt?.result, blobs);
   collectTextBlobs(receipt?.data, blobs);
+  collectTextBlobs(receipt?.return_value, blobs);
+  collectTextBlobs(receipt?.returnValue, blobs);
 
+  let committed: { id?: string; score?: number; feedback?: string; status?: string } = {};
   let best: { id?: string; score?: number; feedback?: string; status?: string } = {};
   for (const blob of blobs) {
     const start = blob.indexOf("{");
@@ -155,15 +221,21 @@ function extractJudgment(receipt: any): {
         ...(id ? { id } : {}),
         ...(status ? { status } : {}),
       };
-      if (candidate.id || candidate.status === "Success") {
+      if (candidate.status === "Success" && candidate.id) {
         return candidate;
       }
-      if ((candidate.score != null || candidate.feedback) && !best.score && !best.feedback) {
-        best = candidate;
+      if (candidate.id || candidate.status === "Success") {
+        committed = { ...committed, ...candidate };
+      }
+      if (candidate.score != null || candidate.feedback) {
+        best = { ...best, ...candidate };
       }
     } catch {
       // Keep scanning other blobs.
     }
+  }
+  if (committed.id || committed.status === "Success") {
+    return { ...best, ...committed };
   }
   return best;
 }
@@ -183,15 +255,29 @@ function readStatus(receipt: any): string {
   );
 }
 
+const EXECUTION_BY_NUMBER: Record<string, string> = {
+  "1": ExecutionResult.FINISHED_WITH_RETURN,
+  "2": ExecutionResult.FINISHED_WITH_ERROR,
+};
+
 function readExecution(receipt: any): string {
   const named =
-    receipt?.txExecutionResultName || receipt?.tx_execution_result_name;
-  if (named) return String(named).toUpperCase();
+    receipt?.txExecutionResultName ||
+    receipt?.tx_execution_result_name ||
+    receipt?.txExecutionResult ||
+    receipt?.tx_execution_result;
+  if (named != null && named !== "") {
+    const asNum = EXECUTION_BY_NUMBER[String(named)];
+    if (asNum) return asNum;
+    return String(named).toUpperCase();
+  }
 
   const leader = receipt?.consensus_data?.leader_receipt;
   const rec = Array.isArray(leader) ? leader[0] : leader;
   const fromLeader = rec?.execution_result;
-  if (!fromLeader) return "";
+  if (fromLeader == null || fromLeader === "") return "";
+  const asNum = EXECUTION_BY_NUMBER[String(fromLeader)];
+  if (asNum) return asNum;
   const upper = String(fromLeader).toUpperCase();
   if (upper === "SUCCESS") return ExecutionResult.FINISHED_WITH_RETURN;
   if (upper === "ERROR") return ExecutionResult.FINISHED_WITH_ERROR;
@@ -204,12 +290,36 @@ function readResult(receipt: any): string {
   ).toUpperCase();
 }
 
+function readableContractError(text: string): string {
+  const cleaned = text.replace(/\s+/g, " ").trim();
+  const match = cleaned.match(
+    /(?:UserError|Exception|Error):\s*(.+)$/i
+  );
+  if (match?.[1]) return match[1].trim();
+  if (
+    /too short|invalid category|rejected by AI|failed to parse/i.test(cleaned)
+  ) {
+    return cleaned;
+  }
+  return cleaned;
+}
+
 function leaderErrorDetail(receipt: any, fallback: string): string {
   const leader = receipt?.consensus_data?.leader_receipt;
   const rec = Array.isArray(leader) ? leader[0] : leader;
   const payload = rec?.result?.payload ?? rec?.result;
-  if (typeof payload === "string" && payload.trim()) return payload;
-  if (typeof rec?.error === "string" && rec.error.trim()) return rec.error;
+  if (typeof payload === "string" && payload.trim()) {
+    return readableContractError(payload);
+  }
+  if (payload && typeof payload === "object") {
+    const readable = (payload as any).readable ?? (payload as any).payload;
+    if (typeof readable === "string" && readable.trim()) {
+      return readableContractError(readable);
+    }
+  }
+  if (typeof rec?.error === "string" && rec.error.trim()) {
+    return readableContractError(rec.error);
+  }
   if (typeof rec?.execution_result === "string") return rec.execution_result;
   return fallback;
 }
@@ -242,9 +352,8 @@ function assertSuccessfulReceipt(receipt: any): void {
   }
 }
 
-function boardHasId(board: Record<string, unknown>, id: string): boolean {
-  if (Object.prototype.hasOwnProperty.call(board, id)) return true;
-  return Object.keys(board).some((key) => String(key) === String(id));
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function buildClient(address?: string | null, studioUrl?: string) {
@@ -286,22 +395,28 @@ class RoyArena {
     this.client = buildClient(address, this.studioUrl);
   }
 
-  private async readLeaderboardRaw(): Promise<Record<string, unknown>> {
-    const raw = await this.client.readContract({
+  private async readContractSafe(functionName: string, args: unknown[] = []): Promise<unknown> {
+    return this.client.readContract({
       address: this.contractAddress,
-      functionName: "get_leaderboard",
-      args: [],
+      functionName,
+      args,
     });
-    return asRecord(raw);
+  }
+
+  private async readSubmissionsRaw(): Promise<unknown> {
+    try {
+      return await this.readContractSafe("get_submissions");
+    } catch {
+      return this.readContractSafe("get_leaderboard");
+    }
   }
 
   async getSubmissions(): Promise<Submission[]> {
     try {
-      const board = await this.readLeaderboardRaw();
-      return Object.entries(board)
-        .map(([id, value]) => asSubmission(id, value))
+      const raw = await this.readSubmissionsRaw();
+      return collectSubmissions(raw)
         .filter((item) => item.user || item.content)
-        .sort((a, b) => Number(b.id) - Number(a.id));
+        .sort((a, b) => submissionSortId(b.id) - submissionSortId(a.id));
     } catch (error) {
       console.error("Error fetching submissions:", error);
       throw error;
@@ -330,20 +445,74 @@ class RoyArena {
   async getLeaderboard(): Promise<LeaderboardEntry[]> {
     try {
       const submissions = await this.getSubmissions();
-      const totals = new Map<string, number>();
+      const totals = new Map<string, { address: string; points: number }>();
 
       for (const item of submissions) {
-        const key = item.user || "unknown";
-        totals.set(key, (totals.get(key) || 0) + item.score);
+        const address = item.user || "unknown";
+        const key = address.toLowerCase();
+        const prev = totals.get(key);
+        if (prev) {
+          prev.points += item.score;
+        } else {
+          totals.set(key, { address, points: item.score });
+        }
       }
 
-      return Array.from(totals.entries())
-        .map(([address, points]) => ({ address, points }))
-        .sort((a, b) => b.points - a.points);
+      try {
+        const rawPoints = await this.readContractSafe("get_points_board");
+        const rec = asRecord(rawPoints);
+        for (const [addr, pts] of Object.entries(rec)) {
+          const key = String(addr).toLowerCase();
+          const points = Number(pts) || 0;
+          const prev = totals.get(key);
+          if (!prev) {
+            totals.set(key, { address: String(addr), points });
+          } else if (points > prev.points) {
+            prev.points = points;
+          }
+        }
+      } catch {
+        // Older deployments may not expose get_points_board.
+      }
+
+      return Array.from(totals.values()).sort((a, b) => b.points - a.points);
     } catch (error) {
       console.error("Error fetching leaderboard:", error);
       throw error;
     }
+  }
+
+  private submissionAppeared(
+    list: Submission[],
+    before: Submission[],
+    userAddr: string,
+    id?: string
+  ): boolean {
+    if (list.length > before.length) return true;
+    if (
+      id &&
+      list.some((item) => String(item.id) === String(id)) &&
+      !before.some((item) => String(item.id) === String(id))
+    ) {
+      return true;
+    }
+    const fromUser = (item: Submission) => sameWallet(item.user, userAddr);
+    return list.filter(fromUser).length > before.filter(fromUser).length;
+  }
+
+  private async waitForPersistedSubmission(
+    userAddr: string,
+    before: Submission[],
+    id?: string
+  ): Promise<boolean> {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const list = await this.getSubmissions();
+      if (this.submissionAppeared(list, before, userAddr, id)) {
+        return true;
+      }
+      await sleep(1500);
+    }
+    return false;
   }
 
   async estimateSubmitFees(
@@ -369,6 +538,7 @@ class RoyArena {
     content: string,
     feePreset?: FeePresetEstimate
   ): Promise<TransactionReceipt> {
+    const before = await this.getSubmissions().catch(() => [] as Submission[]);
     const fees = feePresetToTransactionFees(feePreset);
     const txHash = await this.client.writeContract({
       address: this.contractAddress,
@@ -388,17 +558,15 @@ class RoyArena {
     assertSuccessfulReceipt(receipt);
 
     const judgment = extractJudgment(receipt);
-    if (judgment.id) {
-      let board = await this.readLeaderboardRaw();
-      if (!boardHasId(board, judgment.id)) {
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        board = await this.readLeaderboardRaw();
-      }
-      if (!boardHasId(board, judgment.id)) {
-        throw new Error(
-          "The AI judge scored your entry, but validators did not commit it to the arena. Please try again."
-        );
-      }
+    const persisted = await this.waitForPersistedSubmission(
+      userAddr,
+      before,
+      judgment.id
+    );
+    if (!persisted) {
+      throw new Error(
+        "The transaction finished, but your new submission was not saved to the arena. Please try again."
+      );
     }
 
     return {
