@@ -113,15 +113,12 @@ The app will be available at http://localhost:3000/.
 
 ## How Roy Judge Arena Works
 
-1. **Submit**: A user sends a Startup, Meme, or Poem (20+ characters).
-2. **Leader judgment**: The leader reads the submission and returns `is_valid`, a 1–10 score, and specific feedback.
-3. **Independent validation**: Each validator reads the same content, re-runs the judge, and accepts the result only if:
-   - validity matches
-   - scores are within 2 points
-   - feedback is substantive (not a placeholder)
-4. **Leaderboard**: Agreed scores are stored on-chain and summed per wallet.
+1. **Submit a projection**: A user sends a Startup, Meme, or Poem plus a falsifiable `claim`, `deadline` (`YYYY-MM-DD`), and public `evidence_url`.
+2. **Taste judgment**: The leader scores the idea. Validators independently re-read it and accept the result only if validity matches, scores are within 3 points, and feedback is substantive.
+3. **Reality check**: After the deadline, `resolve_projection(sub_id)` has validators independently re-fetch the evidence URL (and screenshot when possible) and agree on `true`, `false`, or `too_early`.
+4. **Leaderboard**: Agreed taste scores are stored on-chain and summed per wallet. A `too_early` result does not lock the projection.
 
-A score in range with non-empty feedback is **not** enough. Validators must independently evaluate the work that drives the leaderboard.
+A score in range with non-empty feedback is **not** enough. Validators must independently evaluate the work that drives the leaderboard, and later independently look at the live page.
 
 ## Testing Strategy
 

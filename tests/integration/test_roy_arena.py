@@ -10,7 +10,15 @@ from gltest import get_contract_factory, default_account
 from gltest.helpers import load_fixture
 from gltest.assertions import tx_execution_succeeded
 
-from tests.integration.fixtures import SAMPLE_MEME, SAMPLE_STARTUP
+from tests.integration.fixtures import (
+    SAMPLE_CLAIM,
+    SAMPLE_DEADLINE,
+    SAMPLE_EVIDENCE_URL,
+    SAMPLE_MEME,
+    SAMPLE_STARTUP,
+)
+
+PROJECTION = [SAMPLE_CLAIM, SAMPLE_DEADLINE, SAMPLE_EVIDENCE_URL]
 
 
 @pytest.mark.integration
@@ -35,7 +43,7 @@ def test_submit_and_judge_records_consensus_score():
     contract = load_fixture(deploy_contract)
 
     result = contract.submit_and_judge(
-        args=[default_account.address, "Meme", SAMPLE_MEME],
+        args=[default_account.address, "Meme", SAMPLE_MEME, *PROJECTION],
         wait_interval=10000,
         wait_retries=15,
     )
@@ -46,6 +54,10 @@ def test_submit_and_judge_records_consensus_score():
     entry = next(iter(board.values()))
     assert entry["category"] == "Meme"
     assert entry["content"] == SAMPLE_MEME
+    assert entry["claim"] == SAMPLE_CLAIM
+    assert entry["deadline"] == SAMPLE_DEADLINE
+    assert entry["evidence_url"] == SAMPLE_EVIDENCE_URL
+    assert entry["reality_outcome"] == "unresolved"
     assert 1 <= int(entry["score"]) <= 10
     assert len(str(entry["feedback"]).strip()) > 0
     assert contract.get_player_points(args=[default_account.address]) == int(entry["score"])
@@ -56,7 +68,7 @@ def test_invalid_category_reverts():
     contract = load_fixture(deploy_contract)
     try:
         result = contract.submit_and_judge(
-            args=[default_account.address, "Song", SAMPLE_MEME]
+            args=[default_account.address, "Song", SAMPLE_MEME, *PROJECTION]
         )
         assert not tx_execution_succeeded(result)
     except Exception:
@@ -69,7 +81,7 @@ def test_short_content_reverts():
     contract = load_fixture(deploy_contract)
     try:
         result = contract.submit_and_judge(
-            args=[default_account.address, "Poem", "too short"]
+            args=[default_account.address, "Poem", "too short", *PROJECTION]
         )
         assert not tx_execution_succeeded(result)
     except Exception:
@@ -82,14 +94,14 @@ def test_second_submission_accumulates_points():
     contract = load_fixture(deploy_contract)
 
     first = contract.submit_and_judge(
-        args=[default_account.address, "Meme", SAMPLE_MEME],
+        args=[default_account.address, "Meme", SAMPLE_MEME, *PROJECTION],
         wait_interval=10000,
         wait_retries=15,
     )
     assert tx_execution_succeeded(first)
 
     second = contract.submit_and_judge(
-        args=[default_account.address, "Startup", SAMPLE_STARTUP],
+        args=[default_account.address, "Startup", SAMPLE_STARTUP, *PROJECTION],
         wait_interval=10000,
         wait_retries=15,
     )
@@ -107,7 +119,7 @@ def test_second_submission_accumulates_points():
 def test_submit_return_payload_is_json():
     contract = load_fixture(deploy_contract)
     result = contract.submit_and_judge(
-        args=[default_account.address, "Meme", SAMPLE_MEME],
+        args=[default_account.address, "Meme", SAMPLE_MEME, *PROJECTION],
         wait_interval=10000,
         wait_retries=15,
     )

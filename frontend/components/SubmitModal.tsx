@@ -27,8 +27,17 @@ export function SubmitModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [category, setCategory] = useState<ArenaCategory | "">("");
   const [content, setContent] = useState("");
+  const [claim, setClaim] = useState("");
+  const [deadline, setDeadline] = useState("");
+  const [evidenceUrl, setEvidenceUrl] = useState("");
   const [feePresetLevel, setFeePresetLevel] = useState<FeePresetLevel>("standard");
-  const [errors, setErrors] = useState({ category: "", content: "" });
+  const [errors, setErrors] = useState({
+    category: "",
+    content: "",
+    claim: "",
+    deadline: "",
+    evidenceUrl: "",
+  });
   const [submitError, setSubmitError] = useState("");
 
   useEffect(() => {
@@ -38,7 +47,13 @@ export function SubmitModal() {
   }, [isConnected, isOpen, isCreating]);
 
   const validateForm = (): boolean => {
-    const newErrors = { category: "", content: "" };
+    const newErrors = {
+      category: "",
+      content: "",
+      claim: "",
+      deadline: "",
+      evidenceUrl: "",
+    };
 
     if (!category) {
       newErrors.category = "Choose a category";
@@ -47,6 +62,22 @@ export function SubmitModal() {
       newErrors.content = "Content is required";
     } else if (content.trim().length < 20) {
       newErrors.content = "Give the judge a bit more to work with (20+ characters)";
+    }
+    if (!claim.trim()) {
+      newErrors.claim = "Write a falsifiable claim";
+    } else if (claim.trim().length < 20) {
+      newErrors.claim = "The claim needs 20+ characters";
+    }
+    if (!deadline.trim()) {
+      newErrors.deadline = "Pick a deadline";
+    } else if (!/^\d{4}-\d{2}-\d{2}$/.test(deadline.trim())) {
+      newErrors.deadline = "Use YYYY-MM-DD";
+    }
+    const url = evidenceUrl.trim();
+    if (!url) {
+      newErrors.evidenceUrl = "Add a public evidence URL";
+    } else if (!/^https?:\/\/[^/\s]+\.[^/\s]+/i.test(url)) {
+      newErrors.evidenceUrl = "Use a public http(s) URL";
     }
 
     setErrors(newErrors);
@@ -70,6 +101,9 @@ export function SubmitModal() {
       await submitEntryAsync({
         category,
         content: content.trim(),
+        claim: claim.trim(),
+        deadline: deadline.trim(),
+        evidenceUrl: evidenceUrl.trim(),
         feePresetLevel,
       });
       resetForm();
@@ -88,7 +122,16 @@ export function SubmitModal() {
   const resetForm = () => {
     setCategory("");
     setContent("");
-    setErrors({ category: "", content: "" });
+    setClaim("");
+    setDeadline("");
+    setEvidenceUrl("");
+    setErrors({
+      category: "",
+      content: "",
+      claim: "",
+      deadline: "",
+      evidenceUrl: "",
+    });
     setSubmitError("");
   };
 
@@ -108,11 +151,11 @@ export function SubmitModal() {
           Submit Entry
         </Button>
       </DialogTrigger>
-      <DialogContent className="brand-card border-2 sm:max-w-[500px]">
+      <DialogContent className="brand-card border-2 sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">Submit to Roy Arena</DialogTitle>
+          <DialogTitle className="text-2xl font-bold">Submit a projection</DialogTitle>
           <DialogDescription>
-            Independent GenLayer validators read your Startup, Meme, or Poem and agree on a score.
+            Validators score the idea now, then later re-fetch your evidence URL to see if the world agreed.
           </DialogDescription>
         </DialogHeader>
 
@@ -164,6 +207,66 @@ export function SubmitModal() {
             {errors.content && (
               <p className="text-xs text-destructive">{errors.content}</p>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="claim">Projection claim</Label>
+            <textarea
+              id="claim"
+              value={claim}
+              onChange={(e) => {
+                setClaim(e.target.value);
+                setErrors({ ...errors, claim: "" });
+              }}
+              placeholder="By this date, a public page at this URL will show the idea as a live thing in the world."
+              rows={3}
+              className={`w-full rounded-md border bg-transparent px-3 py-2 text-sm outline-none ${
+                errors.claim ? "border-destructive" : "border-white/10"
+              }`}
+            />
+            {errors.claim && (
+              <p className="text-xs text-destructive">{errors.claim}</p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="deadline">Deadline</Label>
+              <input
+                id="deadline"
+                type="date"
+                value={deadline}
+                onChange={(e) => {
+                  setDeadline(e.target.value);
+                  setErrors({ ...errors, deadline: "" });
+                }}
+                className={`w-full rounded-md border bg-transparent px-3 py-2 text-sm outline-none ${
+                  errors.deadline ? "border-destructive" : "border-white/10"
+                }`}
+              />
+              {errors.deadline && (
+                <p className="text-xs text-destructive">{errors.deadline}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="evidenceUrl">Evidence URL</Label>
+              <input
+                id="evidenceUrl"
+                type="url"
+                value={evidenceUrl}
+                onChange={(e) => {
+                  setEvidenceUrl(e.target.value);
+                  setErrors({ ...errors, evidenceUrl: "" });
+                }}
+                placeholder="https://..."
+                className={`w-full rounded-md border bg-transparent px-3 py-2 text-sm outline-none ${
+                  errors.evidenceUrl ? "border-destructive" : "border-white/10"
+                }`}
+              />
+              {errors.evidenceUrl && (
+                <p className="text-xs text-destructive">{errors.evidenceUrl}</p>
+              )}
+            </div>
           </div>
 
           <div className="space-y-3">

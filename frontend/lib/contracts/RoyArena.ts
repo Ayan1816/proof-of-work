@@ -4,6 +4,7 @@ import { ExecutionResult, TransactionStatus } from "genlayer-js/types";
 import type {
   ArenaCategory,
   LeaderboardEntry,
+  ProjectionInput,
   Submission,
   TransactionReceipt,
 } from "./types";
@@ -105,6 +106,12 @@ function asSubmission(id: string, value: unknown, index = 0): Submission {
   const raw = asRecord(value);
   const nestedId = asText(raw.id).trim();
   const fallback = id && id !== "undefined" && id !== "null" ? id : "";
+  const reality = asText(raw.reality_outcome ?? raw.realityOutcome ?? "unresolved");
+  const resolvedRaw = raw.resolved;
+  const resolved =
+    resolvedRaw === true ||
+    resolvedRaw === 1 ||
+    String(resolvedRaw).toLowerCase() === "true";
   return {
     id: nestedId || fallback || `row-${index}`,
     user: asText(raw.user ?? raw.author ?? ""),
@@ -112,6 +119,12 @@ function asSubmission(id: string, value: unknown, index = 0): Submission {
     content: asText(raw.content ?? ""),
     score: Number(raw.score ?? 0) || 0,
     feedback: asText(raw.feedback ?? ""),
+    claim: asText(raw.claim ?? ""),
+    deadline: asText(raw.deadline ?? ""),
+    evidence_url: asText(raw.evidence_url ?? raw.evidenceUrl ?? ""),
+    resolved,
+    reality_outcome: reality || "unresolved",
+    reality_note: asText(raw.reality_note ?? raw.realityNote ?? ""),
   };
 }
 
@@ -519,6 +532,7 @@ class RoyArena {
     userAddr: string,
     category: ArenaCategory,
     content: string,
+    projection: ProjectionInput,
     level: FeePresetLevel = "standard"
   ): Promise<FeePresetEstimate | undefined> {
     return estimateWriteFeePreset(
@@ -526,7 +540,29 @@ class RoyArena {
       {
         address: this.contractAddress,
         functionName: "submit_and_judge",
-        args: [userAddr, category, content],
+        args: [
+          userAddr,
+          category,
+          content,
+          projection.claim,
+          projection.deadline,
+          projection.evidenceUrl,
+        ],
+      },
+      level
+    );
+  }
+
+  async estimateResolveFees(
+    subId: string,
+    level: FeePresetLevel = "standard"
+  ): Promise<FeePresetEstimate | undefined> {
+    return estimateWriteFeePreset(
+      this.client,
+      {
+        address: this.contractAddress,
+        functionName: "resolve_projection",
+        args: [subId],
       },
       level
     );
@@ -536,6 +572,7 @@ class RoyArena {
     userAddr: string,
     category: ArenaCategory,
     content: string,
+    projection: ProjectionInput,
     feePreset?: FeePresetEstimate
   ): Promise<TransactionReceipt> {
     const before = await this.getSubmissions().catch(() => [] as Submission[]);
@@ -543,7 +580,14 @@ class RoyArena {
     const txHash = await this.client.writeContract({
       address: this.contractAddress,
       functionName: "submit_and_judge",
-      args: [userAddr, category, content],
+      args: [
+        userAddr,
+        category,
+        content,
+        projection.claim,
+        projection.deadline,
+        projection.evidenceUrl,
+      ],
       value: BigInt(0),
       ...(fees ? { fees } : {}),
     });
@@ -573,6 +617,34 @@ class RoyArena {
       ...(receipt as TransactionReceipt),
       hash: (receipt as any)?.hash || txHash,
       judgment,
+    };
+  }
+
+  async resolveProjection(
+    subId: string,
+    feePreset?: FeePresetEstimate
+  ): Promise<TransactionReceipt> {
+    const fees = feePresetToTransactionFees(feePreset);
+    const txHash = await this.client.writeContract({
+      address: this.contractAddress,
+      functionName: "resolve_projection",
+      args: [subId],
+      value: BigInt(0),
+      ...(fees ? { fees } : {}),
+    });
+
+    const receipt = await this.client.waitForTransactionReceipt({
+      hash: txHash,
+      status: TransactionStatus.ACCEPTED,
+      retries: 80,
+      interval: 5000,
+    });
+
+    assertSuccessfulReceipt(receipt);
+
+    return {
+      ...(receipt as TransactionReceipt),
+      hash: (receipt as any)?.hash || txHash,
     };
   }
 }

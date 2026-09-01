@@ -19,9 +19,8 @@ export default function HomePage() {
               Roy Judge Arena
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
-              Submit a Startup, Meme, or Poem. GenLayer AI judges it on-chain.
-              <br />
-              Climb the leaderboard with the best scores.
+              Submit an idea and a claim about the future. Validators score the
+              taste now, then re-fetch the live web to see if reality agreed.
             </p>
           </div>
 
@@ -43,21 +42,21 @@ export default function HomePage() {
             <h2 className="text-2xl font-bold mb-4">How it Works</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2">
-                <div className="text-accent font-bold text-lg">1. Submit</div>
+                <div className="text-accent font-bold text-lg">1. Project</div>
                 <p className="text-sm text-muted-foreground">
-                  Connect your wallet and send a Startup pitch, Meme, or Poem to the arena.
+                  Submit a Startup, Meme, or Poem plus a falsifiable claim, deadline, and public evidence URL.
                 </p>
               </div>
               <div className="space-y-2">
-                <div className="text-accent font-bold text-lg">2. Get Judged</div>
+                <div className="text-accent font-bold text-lg">2. Taste</div>
                 <p className="text-sm text-muted-foreground">
-                  Independent GenLayer validators read your work, score it, and must agree on the judgment.
+                  Independent validators read the idea, score it, and must agree before it hits the board.
                 </p>
               </div>
               <div className="space-y-2">
-                <div className="text-accent font-bold text-lg">3. Climb the Board</div>
+                <div className="text-accent font-bold text-lg">3. Reality</div>
                 <p className="text-sm text-muted-foreground">
-                  Scores add up per wallet. Higher totals rise on the leaderboard.
+                  After the deadline, anyone can ask the contract to re-fetch the URL and confirm or deny the claim.
                 </p>
               </div>
             </div>

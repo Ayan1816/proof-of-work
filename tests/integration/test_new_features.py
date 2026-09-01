@@ -216,7 +216,14 @@ def test_run_validator_with_roy_arena_independent_judgment(
     )
     contract = direct_deploy("contracts/roy_arena.py")
     direct_vm.sender = direct_alice
-    contract.submit_and_judge(to_hex(direct_alice), "Meme", meme)
+    contract.submit_and_judge(
+        to_hex(direct_alice),
+        "Meme",
+        meme,
+        "A public page at this URL will describe live GPU inventory for researchers.",
+        "2026-12-31",
+        "https://example.com/gpu-status",
+    )
 
     assert direct_vm._captured_validators, "No validator was captured"
 

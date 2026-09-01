@@ -12,7 +12,16 @@ roy_arena_contract_schema = {
                     ["user_addr", "string"],
                     ["cat", "string"],
                     ["content", "string"],
+                    ["claim", "string"],
+                    ["deadline", "string"],
+                    ["evidence_url", "string"],
                 ],
+                "readonly": False,
+                "ret": "string",
+            },
+            "resolve_projection": {
+                "kwparams": {},
+                "params": [["sub_id", "string"]],
                 "readonly": False,
                 "ret": "string",
             },
@@ -61,3 +70,8 @@ SAMPLE_POEM = "Silicon dreams in quiet blocks, a poem of hashes and clocks."
 SAMPLE_STARTUP = (
     "We match idle GPUs with researchers who need cheap inference tonight."
 )
+SAMPLE_CLAIM = (
+    "A public page at this URL will describe live GPU inventory for researchers."
+)
+SAMPLE_DEADLINE = "2027-12-31"
+SAMPLE_EVIDENCE_URL = "https://example.com/gpu-status"

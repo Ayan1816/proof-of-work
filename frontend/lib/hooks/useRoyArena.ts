@@ -97,10 +97,16 @@ export function useSubmitEntry() {
     mutationFn: async ({
       category,
       content,
+      claim,
+      deadline,
+      evidenceUrl,
       feePresetLevel,
     }: {
       category: ArenaCategory;
       content: string;
+      claim: string;
+      deadline: string;
+      evidenceUrl: string;
       feePresetLevel?: FeePresetLevel;
     }) => {
       if (!contract) {
@@ -112,13 +118,15 @@ export function useSubmitEntry() {
         throw new Error("Wallet not connected. Please connect your wallet to submit.");
       }
       setIsCreating(true);
+      const projection = { claim, deadline, evidenceUrl };
       const feePreset = await contract.estimateSubmitFees(
         address,
         category,
         content,
+        projection,
         feePresetLevel ?? "standard"
       );
-      return contract.submitEntry(address, category, content, feePreset);
+      return contract.submitEntry(address, category, content, projection, feePreset);
     },
     onSuccess: async (receipt) => {
       await Promise.all([
@@ -161,5 +169,71 @@ export function useSubmitEntry() {
     isCreating,
     submitEntry: mutation.mutate,
     submitEntryAsync: mutation.mutateAsync,
+  };
+}
+
+export function useResolveProjection() {
+  const contract = useRoyArenaContract();
+  const { address } = useWallet();
+  const queryClient = useQueryClient();
+  const [isResolving, setIsResolving] = useState(false);
+
+  const mutation = useMutation({
+    mutationFn: async ({
+      subId,
+      feePresetLevel,
+    }: {
+      subId: string;
+      feePresetLevel?: FeePresetLevel;
+    }) => {
+      if (!contract) {
+        throw new Error(
+          "Contract not configured. Please set NEXT_PUBLIC_CONTRACT_ADDRESS in your .env file."
+        );
+      }
+      if (!address) {
+        throw new Error("Wallet not connected. Please connect your wallet to resolve.");
+      }
+      setIsResolving(true);
+      const feePreset = await contract.estimateResolveFees(
+        subId,
+        feePresetLevel ?? "standard"
+      );
+      return contract.resolveProjection(subId, feePreset);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["submissions"] }),
+        queryClient.invalidateQueries({ queryKey: ["leaderboard"] }),
+      ]);
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["submissions"], type: "all" }),
+        queryClient.refetchQueries({ queryKey: ["leaderboard"], type: "all" }),
+      ]);
+      success("Projection resolved", {
+        description: "Validators independently re-fetched the evidence URL.",
+      });
+    },
+    onError: (err: any) => {
+      console.error("Error resolving projection:", err);
+      const message =
+        err?.shortMessage ||
+        err?.cause?.message ||
+        err?.message ||
+        "The projection could not be resolved. Please try again.";
+      error("Resolve failed", {
+        description: message,
+      });
+    },
+    onSettled: () => {
+      setIsResolving(false);
+    },
+  });
+
+  return {
+    ...mutation,
+    isResolving,
+    resolveProjection: mutation.mutate,
+    resolveProjectionAsync: mutation.mutateAsync,
   };
 }

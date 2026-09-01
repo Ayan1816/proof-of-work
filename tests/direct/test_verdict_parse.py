@@ -8,14 +8,24 @@ def _load_helpers():
     module = ast.parse(contract.read_text())
     keep = {
         "MIN_FEEDBACK_LEN",
+        "MAX_URL_LEN",
         "PLACEHOLDER_FEEDBACK",
         "SCORE_TOLERANCE",
+        "REALITY_TRUE",
+        "REALITY_FALSE",
+        "REALITY_TOO_EARLY",
         "_as_bool",
         "_first_integer",
         "_as_score",
         "_feedback_is_substantive",
+        "_parse_json_object",
         "_try_parse_verdict",
+        "_normalize_reality_outcome",
+        "_try_parse_reality",
         "_same_judgment",
+        "_same_reality",
+        "_parse_iso_date",
+        "_is_http_url",
     }
     body = []
     for node in module.body:
@@ -99,6 +109,44 @@ def test_loose_parse_allows_short_independent_feedback():
     assert H["_try_parse_verdict"](
         {"is_valid": True, "score": 8, "feedback": "Funny."}
     ) is None
+
+
+def test_reality_parse_and_independent_outcome_match():
+    parsed = H["_try_parse_reality"](
+        {
+            "outcome": "confirmed",
+            "evidence_note": "The status page lists live GPU inventory.",
+        }
+    )
+    assert parsed["outcome"] == "true"
+    leader = parsed
+    independent = H["_try_parse_reality"](
+        {
+            "outcome": "true",
+            "evidence_note": "Inventory is live on the public page.",
+        },
+        require_substantive_note=False,
+    )
+    assert H["_same_reality"](leader, independent) is True
+
+
+def test_divergent_reality_outcome_rejected():
+    leader = {
+        "outcome": "true",
+        "evidence_note": "The status page lists live GPU inventory.",
+    }
+    independent = {
+        "outcome": "false",
+        "evidence_note": "The page is a parked domain with no product.",
+    }
+    assert H["_same_reality"](leader, independent) is False
+
+
+def test_deadline_and_url_helpers():
+    assert H["_parse_iso_date"]("2026-12-31") == "2026-12-31"
+    assert H["_parse_iso_date"]("2026-13-01") is None
+    assert H["_is_http_url"]("https://example.com/gpu-status") is True
+    assert H["_is_http_url"]("not-a-url") is False
 
 
 if __name__ == "__main__":

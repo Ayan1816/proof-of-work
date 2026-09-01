@@ -1,3 +1,5 @@
+export type RealityOutcome = "unresolved" | "true" | "false" | "too_early";
+
 export interface Submission {
   id: string;
   user: string;
@@ -5,6 +7,18 @@ export interface Submission {
   content: string;
   score: number;
   feedback: string;
+  claim: string;
+  deadline: string;
+  evidence_url: string;
+  resolved: boolean;
+  reality_outcome: RealityOutcome | string;
+  reality_note: string;
+}
+
+export interface ProjectionInput {
+  claim: string;
+  deadline: string;
+  evidenceUrl: string;
 }
 
 export interface LeaderboardEntry {
