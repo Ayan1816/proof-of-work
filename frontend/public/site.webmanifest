@@ -1,7 +1,7 @@
 {
-  "name": "Roy Judge Arena",
-  "short_name": "Roy Arena",
-  "description": "On-chain AI judging for Startups, Memes, and Poems on GenLayer",
+  "name": "Proof of Work",
+  "short_name": "Proof of Work",
+  "description": "AI-verified bounties and grants on GenLayer",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { AccountPanel } from "./AccountPanel";
 import { SubmitModal } from "./SubmitModal";
-import { useSubmissions } from "@/lib/hooks/useRoyArena";
+import { useSubmissions } from "@/lib/hooks/useProofOfWork";
 import { Logo, LogoMark } from "./Logo";
 
 export function Navbar() {
@@ -89,7 +89,7 @@ export function Navbar() {
                 {/* Show mark only on mobile, full logo on desktop */}
                 <LogoMark size="md" className="flex md:hidden" />
                 <Logo size="md" className="hidden md:flex" />
-                <span className="text-lg md:text-xl font-bold ml-2">Roy Arena</span>
+                <span className="text-lg md:text-xl font-bold ml-2">Proof of Work</span>
               </div>
 
               {/* Center: Stats */}

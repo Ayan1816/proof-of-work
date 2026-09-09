@@ -10,7 +10,7 @@ import {
 import { localnet } from "genlayer-js/chains";
 
 export default async function main(client: GenLayerClient<any>) {
-  const filePath = path.resolve(process.cwd(), "contracts/roy_arena.py");
+  const filePath = path.resolve(process.cwd(), "contracts/proof_of_work.py");
 
   try {
     const contractCode = new Uint8Array(readFileSync(filePath));

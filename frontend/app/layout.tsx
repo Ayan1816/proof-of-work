@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "Roy Judge Arena",
-  description: "Submit Startups, Memes, and Poems to an on-chain AI judge on GenLayer.",
+  title: "Proof of Work",
+  description: "AI-verified bounties and grants on GenLayer. Post a spec, submit work, get paid when validators agree.",
   manifest: "/site.webmanifest",
   icons: {
     icon: [
@@ -25,6 +26,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
+        <Script src="/wallet-guard.js" strategy="beforeInteractive" />
         <Providers>
           {children}
         </Providers>

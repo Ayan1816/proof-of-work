@@ -1,38 +1,14 @@
 "use client";
 
 import { Loader2, Trophy, AlertCircle } from "lucide-react";
-import {
-  useResolveProjection,
-  useRoyArenaContract,
-  useSubmissions,
-} from "@/lib/hooks/useRoyArena";
+import { useSubmissions, useProofOfWorkContract } from "@/lib/hooks/useProofOfWork";
 import { useWallet } from "@/lib/genlayer/wallet";
 import { AddressDisplay } from "./AddressDisplay";
 import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
 import type { Submission } from "@/lib/contracts/types";
 
-function isDue(deadline: string): boolean {
-  if (!deadline || !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) return false;
-  return new Date().toISOString().slice(0, 10) >= deadline;
-}
-
-function realityLabel(submission: Submission): { text: string; className: string } {
-  const outcome = String(submission.reality_outcome || "unresolved").toLowerCase();
-  if (submission.resolved || outcome === "true") {
-    return { text: "Confirmed", className: "border-emerald-400/40 text-emerald-300" };
-  }
-  if (outcome === "false") {
-    return { text: "Denied", className: "border-red-400/40 text-red-300" };
-  }
-  if (outcome === "too_early") {
-    return { text: "Too early", className: "border-amber-400/40 text-amber-300" };
-  }
-  return { text: "Unresolved", className: "border-white/20 text-muted-foreground" };
-}
-
 export function SubmissionsTable() {
-  const contract = useRoyArenaContract();
+  const contract = useProofOfWorkContract();
   const { data: submissions, isLoading, isError } = useSubmissions();
   const { address } = useWallet();
 
@@ -76,9 +52,9 @@ export function SubmissionsTable() {
       <div className="brand-card p-12">
         <div className="text-center space-y-3">
           <Trophy className="w-16 h-16 mx-auto text-muted-foreground opacity-30" />
-          <h3 className="text-xl font-bold">No Projections Yet</h3>
+          <h3 className="text-xl font-bold">No Submissions Yet</h3>
           <p className="text-muted-foreground">
-            Be the first to submit an idea with a claim the internet can later confirm.
+            Be the first to post a bounty or submit proof of work.
           </p>
         </div>
       </div>
@@ -92,13 +68,16 @@ export function SubmissionsTable() {
           <thead>
             <tr className="border-b border-white/10">
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Idea
+                Category
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Taste
+                Content
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Reality
+                Score
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Feedback
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Author
@@ -128,79 +107,24 @@ function SubmissionRow({
   currentAddress: string | null;
 }) {
   const isOwner = currentAddress?.toLowerCase() === submission.user?.toLowerCase();
-  const { resolveProjectionAsync, isResolving } = useResolveProjection();
-  const reality = realityLabel(submission);
-  const canResolve =
-    Boolean(currentAddress) &&
-    !submission.resolved &&
-    submission.reality_outcome !== "true" &&
-    submission.reality_outcome !== "false" &&
-    isDue(submission.deadline);
-
-  const handleResolve = async () => {
-    await resolveProjectionAsync({ subId: submission.id });
-  };
 
   return (
-    <tr className="group hover:bg-white/5 transition-colors animate-fade-in align-top">
-      <td className="px-4 py-4 max-w-sm">
-        <div className="flex items-center gap-2 mb-2">
-          <Badge variant="outline" className="text-accent border-accent/30">
-            {submission.category}
-          </Badge>
-          {submission.deadline && (
-            <span className="text-xs text-muted-foreground">Due {submission.deadline}</span>
-          )}
-        </div>
+    <tr className="group hover:bg-white/5 transition-colors animate-fade-in">
+      <td className="px-4 py-4">
+        <Badge variant="outline" className="text-accent border-accent/30">
+          {submission.category}
+        </Badge>
+      </td>
+      <td className="px-4 py-4 max-w-xs">
         <p className="text-sm line-clamp-3">{submission.content}</p>
-        {submission.claim && (
-          <p className="mt-2 text-xs text-muted-foreground line-clamp-2">
-            Claim: {submission.claim}
-          </p>
-        )}
-        {submission.evidence_url && (
-          <a
-            href={submission.evidence_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-1 inline-block text-xs text-accent hover:underline break-all"
-          >
-            {submission.evidence_url}
-          </a>
-        )}
       </td>
       <td className="px-4 py-4">
         <span className="text-lg font-bold text-accent">{submission.score}</span>
-        <p className="mt-1 text-xs text-muted-foreground line-clamp-3 max-w-[12rem]">
+      </td>
+      <td className="px-4 py-4 max-w-xs">
+        <p className="text-sm text-muted-foreground line-clamp-3">
           {submission.feedback || "—"}
         </p>
-      </td>
-      <td className="px-4 py-4">
-        <Badge variant="outline" className={reality.className}>
-          {reality.text}
-        </Badge>
-        {submission.reality_note && (
-          <p className="mt-2 text-xs text-muted-foreground line-clamp-3 max-w-[12rem]">
-            {submission.reality_note}
-          </p>
-        )}
-        {canResolve && (
-          <Button
-            variant="secondary"
-            className="mt-3 h-8 px-3 text-xs"
-            disabled={isResolving}
-            onClick={handleResolve}
-          >
-            {isResolving ? (
-              <>
-                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                Checking
-              </>
-            ) : (
-              "Check reality"
-            )}
-          </Button>
-        )}
       </td>
       <td className="px-4 py-4">
         <div className="flex items-center gap-2">

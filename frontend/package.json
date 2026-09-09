@@ -1,7 +1,7 @@
 {
-  "name": "roy-judge-arena",
+  "name": "proof-of-work",
   "version": "1.0.0",
-  "description": "Roy Judge Arena — on-chain AI judging for Startups, Memes, and Poems on GenLayer.",
+  "description": "Proof of Work — AI-verified bounty and grant platform on GenLayer.",
   "main": "index.js",
   "scripts": {
     "dev": "next dev",

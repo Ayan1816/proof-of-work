@@ -1,59 +1,60 @@
-"""Expected contract state fixtures for Roy Judge Arena integration tests."""
+"""Expected contract state fixtures for Proof of Work integration tests."""
 
-roy_arena_contract_schema = {
+proof_of_work_contract_schema = {
     "id": 1,
     "jsonrpc": "2.0",
     "result": {
         "ctor": {"kwparams": {}, "params": []},
         "methods": {
-            "submit_and_judge": {
+            "judge_work": {
                 "kwparams": {},
                 "params": [
-                    ["user_addr", "string"],
-                    ["cat", "string"],
+                    ["spec", "string"],
                     ["content", "string"],
-                    ["claim", "string"],
-                    ["deadline", "string"],
-                    ["evidence_url", "string"],
                 ],
                 "readonly": False,
                 "ret": "string",
             },
-            "resolve_projection": {
-                "kwparams": {},
-                "params": [["sub_id", "string"]],
-                "readonly": False,
-                "ret": "string",
-            },
-            "get_submission": {
-                "kwparams": {},
-                "params": [["sub_id", "string"]],
-                "readonly": True,
-                "ret": "dict",
-            },
-            "get_player_points": {
-                "kwparams": {},
-                "params": [["player_address", "string"]],
-                "readonly": True,
-                "ret": "int",
-            },
-            "get_leaderboard": {
+            "get_name": {
                 "kwparams": {},
                 "params": [],
                 "readonly": True,
+                "ret": "string",
+            },
+            "create_bounty": {
+                "kwparams": {},
+                "params": [
+                    ["title", "string"],
+                    ["spec", "string"],
+                    ["reward", "int"],
+                    ["deadline", "int"],
+                ],
+                "readonly": False,
+                "ret": "string",
+            },
+            "get_bounty": {
+                "kwparams": {},
+                "params": [["bounty_id", "string"]],
+                "readonly": True,
                 "ret": "dict",
             },
-            "get_submissions": {
+            "list_bounties": {
                 "kwparams": {},
                 "params": [],
                 "readonly": True,
                 "ret": "array",
             },
-            "get_points_board": {
+            "get_reputation": {
+                "kwparams": {},
+                "params": [["contributor", "string"]],
+                "readonly": True,
+                "ret": "dict",
+            },
+            "get_bounty_count": {
                 "kwparams": {},
                 "params": [],
                 "readonly": True,
-                "ret": "dict",
+                "ret": "int",
             },
             "get_submission_count": {
                 "kwparams": {},
@@ -61,17 +62,59 @@ roy_arena_contract_schema = {
                 "readonly": True,
                 "ret": "int",
             },
+            "get_total_escrowed": {
+                "kwparams": {},
+                "params": [],
+                "readonly": True,
+                "ret": "int",
+            },
+            "submit_work": {
+                "kwparams": {},
+                "params": [
+                    ["bounty_id", "string"],
+                    ["proof_link", "string"],
+                    ["description", "string"],
+                ],
+                "readonly": False,
+                "ret": "string",
+            },
+            "judge_submission": {
+                "kwparams": {},
+                "params": [["bounty_id", "string"]],
+                "readonly": False,
+                "ret": "string",
+            },
+            "release_payment": {
+                "kwparams": {},
+                "params": [["bounty_id", "string"]],
+                "readonly": False,
+                "ret": "string",
+            },
+            "appeal": {
+                "kwparams": {},
+                "params": [["bounty_id", "string"]],
+                "readonly": False,
+                "ret": "string",
+            },
+            "get_submission": {
+                "kwparams": {},
+                "params": [["submission_id", "string"]],
+                "readonly": True,
+                "ret": "dict",
+            },
         },
     },
 }
 
-SAMPLE_MEME = "Why did the validator cross the chain? To get to the other fork."
-SAMPLE_POEM = "Silicon dreams in quiet blocks, a poem of hashes and clocks."
-SAMPLE_STARTUP = (
-    "We match idle GPUs with researchers who need cheap inference tonight."
+SAMPLE_SPEC = (
+    "Write a README that explains how to install dependencies and run the "
+    "project's tests locally."
 )
-SAMPLE_CLAIM = (
-    "A public page at this URL will describe live GPU inventory for researchers."
+SAMPLE_WORK = (
+    "README: pip install -r requirements.txt, then pytest tests/direct/ -v. "
+    "Includes a local-dev section and troubleshooting notes."
 )
-SAMPLE_DEADLINE = "2027-12-31"
-SAMPLE_EVIDENCE_URL = "https://example.com/gpu-status"
+SAMPLE_UNRELATED = (
+    "This is a poem about the moon and has nothing to do with the requested "
+    "README or local test instructions."
+)

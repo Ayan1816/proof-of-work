@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
-      - run: genvm-lint check contracts/roy_arena.py
+      - run: genvm-lint check contracts/proof_of_work.py
 
   test-direct:
     name: Direct Mode Tests

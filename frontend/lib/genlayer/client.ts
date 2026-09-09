@@ -23,6 +23,8 @@ export const GENLAYER_NETWORK = {
 // Ethereum provider type from window
 interface EthereumProvider {
   isMetaMask?: boolean;
+  isPhantom?: boolean;
+  providers?: EthereumProvider[];
   request: (args: { method: string; params?: any[] }) => Promise<any>;
   on: (event: string, handler: (...args: any[]) => void) => void;
   removeListener: (event: string, handler: (...args: any[]) => void) => void;
@@ -65,11 +67,20 @@ export function isMetaMaskInstalled(): boolean {
 }
 
 /**
- * Get the Ethereum provider (MetaMask)
+ * Get the Ethereum provider, preferring MetaMask when several wallets are injected.
  */
 export function getEthereumProvider(): EthereumProvider | null {
   if (typeof window === "undefined") return null;
-  return window.ethereum || null;
+  const injected = window.ethereum;
+  if (!injected) return null;
+
+  const candidates = Array.isArray(injected.providers)
+    ? injected.providers
+    : [injected];
+  const metamask = candidates.find(
+    (provider) => provider.isMetaMask && !provider.isPhantom
+  );
+  return metamask || candidates[0] || injected;
 }
 
 /**

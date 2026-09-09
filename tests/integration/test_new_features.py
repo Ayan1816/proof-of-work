@@ -203,34 +203,32 @@ def test_run_validator_respects_leader_result_override(direct_vm, direct_deploy,
     assert result is False, f"Expected False (forced leader_result mismatch), got {result!r}"
 
 
-def test_run_validator_with_roy_arena_independent_judgment(
+def test_run_validator_with_proof_of_work_independent_judgment(
     direct_vm, direct_deploy, direct_alice
 ):
-    """Roy Arena validators re-judge the submission and can be re-run in direct mode."""
-    from tests.direct.conftest import to_hex
-
-    meme = "Why did the validator cross the chain? To get to the other fork."
+    """Proof of Work validators re-judge the work and can be re-run in direct mode."""
+    spec = (
+        "Write a README that explains how to install dependencies and run the "
+        "project's tests locally."
+    )
+    work = (
+        "README: pip install -r requirements.txt, then pytest tests/direct/ -v. "
+        "Includes a local-dev section and troubleshooting notes."
+    )
     direct_vm.mock_llm(
         r".*",
-        '{"is_valid": true, "score": 8, "feedback": "Sharp and funny chain joke."}',
+        '{"approved": true, "reasoning": "The README lists pip install and pytest, matching the spec."}',
     )
-    contract = direct_deploy("contracts/roy_arena.py")
+    contract = direct_deploy("contracts/proof_of_work.py")
     direct_vm.sender = direct_alice
-    contract.submit_and_judge(
-        to_hex(direct_alice),
-        "Meme",
-        meme,
-        "A public page at this URL will describe live GPU inventory for researchers.",
-        "2026-12-31",
-        "https://example.com/gpu-status",
-    )
+    contract.judge_work(spec, work)
 
     assert direct_vm._captured_validators, "No validator was captured"
 
     direct_vm.clear_mocks()
     direct_vm.mock_llm(
         r".*",
-        '{"is_valid": true, "score": 2, "feedback": "The joke is thin and does not land."}',
+        '{"approved": false, "reasoning": "The write-up never mentions install or test commands."}',
     )
     assert direct_vm.run_validator() is False
 

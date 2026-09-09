@@ -1,31 +1,19 @@
-"""Unit tests for Roy Arena verdict parsing — no GenLayer runtime required."""
+"""Unit tests for Proof of Work verdict parsing — no GenLayer runtime required."""
 import ast
 from pathlib import Path
 
 
 def _load_helpers():
-    contract = Path(__file__).resolve().parents[2] / "contracts" / "roy_arena.py"
+    contract = Path(__file__).resolve().parents[2] / "contracts" / "proof_of_work.py"
     module = ast.parse(contract.read_text())
     keep = {
-        "MIN_FEEDBACK_LEN",
-        "MAX_URL_LEN",
-        "PLACEHOLDER_FEEDBACK",
-        "SCORE_TOLERANCE",
-        "REALITY_TRUE",
-        "REALITY_FALSE",
-        "REALITY_TOO_EARLY",
+        "MIN_REASONING_LEN",
+        "PLACEHOLDER_REASONING",
         "_as_bool",
-        "_first_integer",
-        "_as_score",
-        "_feedback_is_substantive",
-        "_parse_json_object",
+        "_reasoning_is_substantive",
         "_try_parse_verdict",
-        "_normalize_reality_outcome",
-        "_try_parse_reality",
         "_same_judgment",
-        "_same_reality",
-        "_parse_iso_date",
-        "_is_http_url",
+        "_normalize_proof_url",
     }
     body = []
     for node in module.body:
@@ -43,110 +31,112 @@ def _load_helpers():
 H = _load_helpers()
 
 
-def test_as_score_accepts_float_and_fraction():
-    assert H["_as_score"](8) == 8
-    assert H["_as_score"](8.0) == 8
-    assert H["_as_score"]("8.0") == 8
-    assert H["_as_score"]("8/10") == 8
-    assert H["_as_score"](True) is None
-    assert H["_as_score"](11) is None
+def test_as_bool_accepts_common_shapes():
+    assert H["_as_bool"](True) is True
+    assert H["_as_bool"](False) is False
+    assert H["_as_bool"](1) is True
+    assert H["_as_bool"]("yes") is True
+    assert H["_as_bool"]("no") is False
+    assert H["_as_bool"]("maybe") is None
 
 
-def test_float_verdict_parses_and_commits_shape():
+def test_approved_verdict_parses():
     parsed = H["_try_parse_verdict"](
-        {"is_valid": True, "score": 8.0, "feedback": "Sharp and funny chain joke."}
-    )
-    assert parsed == {
-        "is_valid": True,
-        "score": 8,
-        "feedback": "Sharp and funny chain joke.",
-    }
-
-
-def test_independent_score_within_tolerance_agrees():
-    leader = {"is_valid": True, "score": 8, "feedback": "Sharp and funny chain joke."}
-    independent = {"is_valid": True, "score": 5, "feedback": "The joke works."}
-    assert H["_same_judgment"](leader, independent) is True
-    assert H["SCORE_TOLERANCE"] == 3
-
-
-def test_divergent_score_still_rejected():
-    leader = {"is_valid": True, "score": 9, "feedback": "Outstanding original chain humor."}
-    independent = {
-        "is_valid": True,
-        "score": 2,
-        "feedback": "The joke is thin and does not land.",
-    }
-    assert H["_same_judgment"](leader, independent) is False
-
-
-def test_spam_judges_can_agree_to_reject():
-    leader = {
-        "is_valid": False,
-        "score": 1,
-        "feedback": "This is unrelated spam, not a meme at all.",
-    }
-    independent = {
-        "is_valid": False,
-        "score": 1,
-        "feedback": "Unrelated spam rather than a meme.",
-    }
-    assert H["_same_judgment"](leader, independent) is True
-
-
-def test_placeholder_independent_feedback_rejected():
-    leader = {"is_valid": True, "score": 8, "feedback": "Sharp and funny chain joke."}
-    independent = {"is_valid": True, "score": 8, "feedback": "No feedback"}
-    assert H["_same_judgment"](leader, independent) is False
-
-
-def test_loose_parse_allows_short_independent_feedback():
-    loose = H["_try_parse_verdict"](
-        {"is_valid": True, "score": 8, "feedback": "Funny."},
-        require_substantive_feedback=False,
-    )
-    assert loose["score"] == 8
-    assert H["_try_parse_verdict"](
-        {"is_valid": True, "score": 8, "feedback": "Funny."}
-    ) is None
-
-
-def test_reality_parse_and_independent_outcome_match():
-    parsed = H["_try_parse_reality"](
         {
-            "outcome": "confirmed",
-            "evidence_note": "The status page lists live GPU inventory.",
+            "approved": True,
+            "reasoning": "The README lists pip install and pytest, matching the spec.",
         }
     )
-    assert parsed["outcome"] == "true"
-    leader = parsed
-    independent = H["_try_parse_reality"](
+    assert parsed == {
+        "approved": True,
+        "reasoning": "The README lists pip install and pytest, matching the spec.",
+    }
+
+
+def test_legacy_is_valid_feedback_shape_still_parses():
+    parsed = H["_try_parse_verdict"](
         {
-            "outcome": "true",
-            "evidence_note": "Inventory is live on the public page.",
-        },
-        require_substantive_note=False,
+            "is_valid": False,
+            "feedback": "The text is a moon poem and does not provide install steps.",
+        }
     )
-    assert H["_same_reality"](leader, independent) is True
+    assert parsed["approved"] is False
+    assert "poem" in parsed["reasoning"].lower()
 
 
-def test_divergent_reality_outcome_rejected():
+def test_status_string_verdict_parses():
+    parsed = H["_try_parse_verdict"](
+        {
+            "verdict": "Rejected",
+            "reasoning": "The write-up never mentions install or test commands.",
+        }
+    )
+    assert parsed["approved"] is False
+
+
+def test_independent_matching_verdict_agrees():
     leader = {
-        "outcome": "true",
-        "evidence_note": "The status page lists live GPU inventory.",
+        "approved": True,
+        "reasoning": "The README lists pip install and pytest, matching the spec.",
     }
     independent = {
-        "outcome": "false",
-        "evidence_note": "The page is a parked domain with no product.",
+        "approved": True,
+        "reasoning": "Install and test commands are present.",
     }
-    assert H["_same_reality"](leader, independent) is False
+    assert H["_same_judgment"](leader, independent) is True
 
 
-def test_deadline_and_url_helpers():
-    assert H["_parse_iso_date"]("2026-12-31") == "2026-12-31"
-    assert H["_parse_iso_date"]("2026-13-01") is None
-    assert H["_is_http_url"]("https://example.com/gpu-status") is True
-    assert H["_is_http_url"]("not-a-url") is False
+def test_divergent_approval_still_rejected():
+    leader = {
+        "approved": True,
+        "reasoning": "The README lists pip install and pytest, matching the spec.",
+    }
+    independent = {
+        "approved": False,
+        "reasoning": "The write-up never mentions install or test commands.",
+    }
+    assert H["_same_judgment"](leader, independent) is False
+
+
+def test_rejecting_judges_can_agree():
+    leader = {
+        "approved": False,
+        "reasoning": "The text is a moon poem and does not provide install steps.",
+    }
+    independent = {
+        "approved": False,
+        "reasoning": "Unrelated poem rather than a README.",
+    }
+    assert H["_same_judgment"](leader, independent) is True
+
+
+def test_placeholder_independent_reasoning_rejected():
+    leader = {
+        "approved": True,
+        "reasoning": "The README lists pip install and pytest, matching the spec.",
+    }
+    independent = {"approved": True, "reasoning": "No feedback"}
+    assert H["_same_judgment"](leader, independent) is False
+
+
+def test_github_blob_url_normalizes_to_raw():
+    blob = "https://github.com/acme/app/blob/main/README.md"
+    assert H["_normalize_proof_url"](blob) == (
+        "https://raw.githubusercontent.com/acme/app/main/README.md"
+    )
+    other = "https://example.com/proof.md"
+    assert H["_normalize_proof_url"](other) == other
+
+
+def test_loose_parse_allows_short_independent_reasoning():
+    loose = H["_try_parse_verdict"](
+        {"approved": True, "reasoning": "Match."},
+        require_substantive_reasoning=False,
+    )
+    assert loose["approved"] is True
+    assert H["_try_parse_verdict"](
+        {"approved": True, "reasoning": "Match."}
+    ) is None
 
 
 if __name__ == "__main__":

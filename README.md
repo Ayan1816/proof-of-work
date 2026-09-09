@@ -1,4 +1,4 @@
-# Roy Judge Arena
+# Proof of Work
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/license/mit/)
 [![Discord](https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white)](https://discord.gg/8Jm4v89VAu)
 [![Telegram](https://img.shields.io/badge/Telegram--T.svg?style=social&logo=telegram)](https://t.me/genlayer)
@@ -6,10 +6,10 @@
 [![GitHub star chart](https://img.shields.io/github/stars/yeagerai/genlayer-project-boilerplate?style=social)](https://star-history.com/#yeagerai/genlayer-js)
 
 ## About
-Roy Judge Arena is a GenLayer intelligent contract where users submit a Startup, Meme, or Poem. The leader AI judges the work, then **validators independently read the same submission and re-score it**. A leaderboard score is stored only when those independent judgments agree on substance — not merely because the score is in range.
+Proof of Work is an AI-verified bounty and grant platform on GenLayer. Anyone can post a bounty with a spec and a reward. Contributors submit work against it. **Validators independently fetch the proof and compare it to the spec.** Payment releases from escrow only when those independent judgments agree that the work is Approved.
 
 ## What's included
-- `contracts/roy_arena.py` — the single Roy Judge Arena intelligent contract
+- `contracts/proof_of_work.py` — the Proof of Work intelligent contract
 - **Direct mode tests** — fast, in-memory unit tests with LLM mocking (~ms per test)
 - **Integration tests** — full end-to-end tests against GenLayer Studio
 - **Contract linting** — static analysis to catch common contract issues before deployment
@@ -25,13 +25,13 @@ Roy Judge Arena is a GenLayer intelligent contract where users submit a Startup,
 ## Project Structure
 
 ```
-contracts/              # Python intelligent contracts (RoyJudgeArena)
+contracts/              # Python intelligent contracts (ProofOfWork)
 tests/
   direct/               # Fast in-memory tests (no Studio required)
-    test_roy_arena.py   # Submit, reject, validator consensus
-    test_views.py       # Read-only view methods
+    test_proof_of_work.py  # Judgment kernel, reject, validator consensus
+    test_views.py          # Read-only view methods
   integration/          # Full tests against GenLayer Studio
-    test_roy_arena.py
+    test_proof_of_work.py
     fixtures.py
 frontend/               # Next.js 15 app (TypeScript, TanStack Query, Radix UI)
 deploy/                 # TypeScript deployment scripts
@@ -45,7 +45,7 @@ pyproject.toml          # Python/pytest configuration
 ### 1. Set up Python environment
 
 ```shell
-python3 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
@@ -55,7 +55,7 @@ pip install -r requirements.txt
 Run the GenVM linter to catch issues before deployment:
 
 ```shell
-genvm-lint check contracts/roy_arena.py
+genvm-lint check contracts/proof_of_work.py
 ```
 
 The linter catches:
@@ -111,20 +111,20 @@ npm run dev
 
 The app will be available at http://localhost:3000/.
 
-## How Roy Judge Arena Works
+## How Proof of Work Works
 
-1. **Submit a projection**: A user sends a Startup, Meme, or Poem plus a falsifiable `claim`, `deadline` (`YYYY-MM-DD`), and public `evidence_url`.
-2. **Taste judgment**: The leader scores the idea. Validators independently re-read it and accept the result only if validity matches, scores are within 3 points, and feedback is substantive.
-3. **Reality check**: After the deadline, `resolve_projection(sub_id)` has validators independently re-fetch the evidence URL (and screenshot when possible) and agree on `true`, `false`, or `too_early`.
-4. **Leaderboard**: Agreed taste scores are stored on-chain and summed per wallet. A `too_early` result does not lock the projection.
+1. **Post a bounty**: A creator locks a reward in escrow with a spec and a deadline.
+2. **Submit work**: A contributor shares a proof link (for example a GitHub URL) and a short description.
+3. **Independent judgment**: The leader AI fetches the proof and compares it to the spec. Validators independently re-read the same work and must agree on Approved or Rejected.
+4. **Payout or appeal**: An Approved verdict can release escrow to the contributor. Either party can appeal a contested verdict.
 
-A score in range with non-empty feedback is **not** enough. Validators must independently evaluate the work that drives the leaderboard, and later independently look at the live page.
+A non-empty reasoning string is **not** enough. Validators must independently evaluate whether the submitted work matches the spec.
 
 ## Testing Strategy
 
 | Test Type | Command | Speed | Requires Studio |
 |-----------|---------|-------|-----------------|
-| **Lint** | `genvm-lint check contracts/roy_arena.py` | ~250ms | No |
+| **Lint** | `genvm-lint check contracts/proof_of_work.py` | ~250ms | No |
 | **Direct** | `pytest tests/direct/ -v` | ~ms/test | No |
 | **Integration** | `gltest tests/integration/ -v -s` | ~min/test | Yes |
 

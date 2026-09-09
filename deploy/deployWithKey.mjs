@@ -52,7 +52,7 @@ if (!rawKey) {
 }
 const privateKey = (rawKey.startsWith("0x") ? rawKey : `0x${rawKey}`);
 
-const contractPath = path.resolve(process.cwd(), "contracts/roy_arena.py");
+const contractPath = path.resolve(process.cwd(), "contracts/proof_of_work.py");
 const account = createAccount(privateKey);
 const client = createClient({
   chain: studionet,

@@ -1,6 +1,6 @@
-# Roy Judge Arena
+# Proof of Work
 
-Next.js frontend for Roy Judge Arena — an on-chain AI judge for Startups, Memes, and Poems on GenLayer.
+Next.js frontend for Proof of Work — an AI-verified bounty and grant platform on GenLayer.
 
 ## Setup
 
@@ -22,7 +22,7 @@ cp .env.example .env
 ```
 
 3. Configure environment variables:
-   - `NEXT_PUBLIC_CONTRACT_ADDRESS` - deployed RoyJudgeArena contract address
+   - `NEXT_PUBLIC_CONTRACT_ADDRESS` - deployed ProofOfWork contract address
    - `NEXT_PUBLIC_STUDIO_URL` - GenLayer Studio URL (default: https://studio.genlayer.com/api)
 
 ## Development
@@ -72,10 +72,9 @@ The app uses MetaMask with GenLayer's network:
 
 ## Features
 
-- **Submit entries**: Send a Startup, Meme, or Poem to the on-chain AI judge
-- **Independent consensus**: Validators re-read the work and must agree on the score
-- **Submission table**: Live scores, feedback, and authors
-- **Leaderboard**: Rank wallets by total judged score
-- **Player stats**: View your points from agreed judgments
+- **Post bounties**: Lock a reward with a spec and deadline
+- **Submit work**: Share a proof link for independent AI judgment
+- **Independent consensus**: Validators re-read the work and must agree on Approved or Rejected
+- **Escrow payout**: Approved work can release payment to the contributor
 - **Glass-morphism UI**: Premium dark theme with OKLCH colors, backdrop blur effects, and smooth animations
 - **Real-time Updates**: Automatic data fetching via TanStack Query

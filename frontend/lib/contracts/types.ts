@@ -1,44 +1,44 @@
-export type RealityOutcome = "unresolved" | "true" | "false" | "too_early";
+export type BountyStatus =
+  | "Open"
+  | "InReview"
+  | "Approved"
+  | "Rejected"
+  | "Paid"
+  | "Appealed";
+
+export interface Bounty {
+  id: string;
+  creator: string;
+  title: string;
+  spec: string;
+  reward: bigint;
+  deadline: number;
+  status: BountyStatus;
+  escrowLocked: boolean;
+  submitter: string;
+  submissionId: string;
+  verdictReasoning: string;
+  appealCount: number;
+  lastApproved: boolean;
+}
 
 export interface Submission {
   id: string;
-  user: string;
-  category: string;
-  content: string;
-  score: number;
-  feedback: string;
-  claim: string;
-  deadline: string;
-  evidence_url: string;
-  resolved: boolean;
-  reality_outcome: RealityOutcome | string;
-  reality_note: string;
+  bountyId: string;
+  submitter: string;
+  proofLink: string;
+  description: string;
+  timestamp: number;
 }
 
-export interface ProjectionInput {
-  claim: string;
-  deadline: string;
-  evidenceUrl: string;
-}
-
-export interface LeaderboardEntry {
-  address: string;
-  points: number;
+export interface Reputation {
+  approvedCount: number;
+  rejectedCount: number;
 }
 
 export interface TransactionReceipt {
   status: string;
   hash: string;
-  blockNumber?: number;
-  statusName?: string;
-  txExecutionResultName?: string;
-  judgment?: {
-    id?: string;
-    score?: number;
-    feedback?: string;
-    status?: string;
-  };
-  [key: string]: any;
+  payload?: Record<string, unknown>;
+  [key: string]: unknown;
 }
-
-export type ArenaCategory = "Startup" | "Meme" | "Poem";
