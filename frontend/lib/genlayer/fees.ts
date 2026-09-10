@@ -1,6 +1,6 @@
 "use client";
 
-export type FeePresetLevel = "low" | "standard" | "high";
+type FeePresetLevel = "low" | "standard" | "high";
 
 export type FeePresetEstimate = {
   level: FeePresetLevel;

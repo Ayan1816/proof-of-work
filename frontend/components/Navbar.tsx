@@ -1,117 +1,108 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AccountPanel } from "./AccountPanel";
-import { SubmitModal } from "./SubmitModal";
-import { useSubmissions } from "@/lib/hooks/useProofOfWork";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Menu, X } from "lucide-react";
+import { WalletButton } from "./WalletButton";
 import { Logo, LogoMark } from "./Logo";
+import { Button } from "./ui/button";
+import { cn } from "@/lib/utils";
+
+const NAV_LINKS = [
+  { href: "/", label: "Home" },
+  { href: "/create", label: "Create bounty" },
+  { href: "/profile", label: "Profile" },
+  { href: "/faq", label: "FAQ" },
+] as const;
+
+function isActive(pathname: string, href: string): boolean {
+  if (href === "/") return pathname === "/";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 export function Navbar() {
+  const pathname = usePathname();
   const [isScrolled, setIsScrolled] = useState(false);
-  const [scrollProgress, setScrollProgress] = useState(0);
-  const { data: submissions } = useSubmissions();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => {
-      const scrollY = window.scrollY;
-      const threshold = 80;
-
-      setIsScrolled(scrollY > 20);
-
-      // Calculate progress from 0 to 1 for smoother animations
-      const progress = Math.min(Math.max((scrollY - 10) / threshold, 0), 1);
-      setScrollProgress(progress);
-    };
-
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Minimal variant with scroll animations
-  const paddingTop = Math.round(scrollProgress * 16); // 0-16px padding
-  const headerHeight = 64 - Math.round(scrollProgress * 8); // 64px to 56px
-
-  // Only apply border radius on desktop (md breakpoint and up)
-  const getBorderRadius = () => {
-    if (typeof window !== 'undefined' && window.innerWidth >= 768) {
-      return Math.round(scrollProgress * 9999); // Fully rounded when scrolled on desktop
-    }
-    return 0; // No rounding on mobile
-  };
-  const borderRadius = getBorderRadius();
-
-  const totalSubmissions = submissions?.length || 0;
-  const judgedCount = submissions?.filter((item) => item.score > 0).length || 0;
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   return (
-    <header
-      className="fixed top-0 left-0 right-0 z-50 transition-all duration-500 ease-out"
-      style={{ paddingTop: `${paddingTop}px` }}
-    >
+    <header className="fixed top-0 left-0 right-0 z-50">
       <div
-        className="transition-all duration-500 ease-out"
-        style={{
-          width: '100%',
-          maxWidth: isScrolled ? '80rem' : '100%',
-          margin: '0 auto',
-          borderRadius: `${borderRadius}px`,
-        }}
+        className={cn(
+          "border-b backdrop-blur-xl transition-colors",
+          isScrolled
+            ? "border-white/10 bg-black/60"
+            : "border-transparent bg-black/30"
+        )}
       >
-        <div
-          className="backdrop-blur-xl border transition-all duration-500 ease-out md:rounded-none"
-          style={{
-            borderColor: `oklch(0.3 0.02 0 / ${0.4 + scrollProgress * 0.4})`,
-            background: `linear-gradient(135deg, oklch(0.18 0.01 0 / ${0.1 + scrollProgress * 0.3}) 0%, oklch(0.15 0.01 0 / ${0.05 + scrollProgress * 0.25}) 50%, oklch(0.16 0.01 0 / ${0.08 + scrollProgress * 0.27}) 100%)`,
-            borderRadius: `${borderRadius}px`,
-            borderWidth: '1px',
-            borderLeftWidth: isScrolled ? '1px' : '0px',
-            borderRightWidth: isScrolled ? '1px' : '0px',
-            borderTopWidth: isScrolled ? '1px' : '0px',
-            boxShadow: isScrolled
-              ? '0 32px 64px 0 rgba(0, 0, 0, 0.2), inset 0 1px 0 0 oklch(0.3 0.02 0 / 0.3)'
-              : 'none',
-            backdropFilter: 'blur(16px) saturate(180%)',
-            WebkitBackdropFilter: 'blur(16px) saturate(180%)',
-          }}
-        >
-          <div
-            className="px-6 transition-all duration-500 mx-auto"
-            style={{
-              maxWidth: isScrolled ? '80rem' : '112rem',
-            }}
-          >
-            <div
-              className="flex items-center justify-between transition-all duration-500"
-              style={{ height: `${headerHeight}px` }}
+        <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between gap-4">
+          <Link href="/" className="flex items-center gap-2 shrink-0">
+            <LogoMark size="md" className="flex md:hidden" />
+            <Logo size="md" className="hidden md:flex" />
+            <span className="text-base md:text-lg font-bold">Proof of Work</span>
+          </Link>
+
+          <nav className="hidden md:flex items-center gap-1">
+            {NAV_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={cn(
+                  "px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                  isActive(pathname, link.href)
+                    ? "text-accent bg-accent/10"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                )}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+
+          <div className="flex items-center gap-2">
+            <WalletButton />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              aria-label={menuOpen ? "Close menu" : "Open menu"}
+              onClick={() => setMenuOpen((open) => !open)}
             >
-              {/* Left: Logo */}
-              <div className="flex items-center gap-3">
-                {/* Show mark only on mobile, full logo on desktop */}
-                <LogoMark size="md" className="flex md:hidden" />
-                <Logo size="md" className="hidden md:flex" />
-                <span className="text-lg md:text-xl font-bold ml-2">Proof of Work</span>
-              </div>
-
-              {/* Center: Stats */}
-              <div className="hidden md:flex items-center gap-6 text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground">Submissions:</span>
-                  <span className="text-foreground font-bold text-accent">{totalSubmissions}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground">Judged:</span>
-                  <span className="text-foreground font-bold text-accent">{judgedCount}</span>
-                </div>
-              </div>
-
-              {/* Right: Actions */}
-              <div className="flex items-center gap-3">
-                <SubmitModal />
-                <AccountPanel />
-              </div>
-            </div>
+              {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </Button>
           </div>
         </div>
+
+        {menuOpen && (
+          <nav className="md:hidden border-t border-white/10 px-4 py-3 space-y-1 bg-black/80">
+            {NAV_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={cn(
+                  "block px-3 py-2 rounded-md text-sm font-medium",
+                  isActive(pathname, link.href)
+                    ? "text-accent bg-accent/10"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                )}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+        )}
       </div>
     </header>
   );

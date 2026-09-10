@@ -1,10 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Loader2, Sparkles } from "lucide-react";
-import { useSubmitEntry } from "@/lib/hooks/useProofOfWork";
-import type { FeePresetLevel } from "@/lib/genlayer/fees";
-import type { ArenaCategory } from "@/lib/contracts/types";
+import { Plus, Loader2, Link2, FileText } from "lucide-react";
+import { useSubmitWork } from "@/lib/hooks/useProofOfWork";
 import { useWallet } from "@/lib/genlayer/wallet";
 import { error } from "@/lib/utils/toast";
 import { Button } from "./ui/button";
@@ -16,37 +14,59 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "./ui/dialog";
+import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { Textarea } from "./ui/textarea";
 
-const CATEGORIES: ArenaCategory[] = ["Startup", "Meme", "Poem"];
+const MIN_DESCRIPTION_LENGTH = 20;
 
-export function SubmitModal() {
+function isHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value.trim());
+    return (
+      (parsed.protocol === "http:" || parsed.protocol === "https:") &&
+      parsed.hostname.length > 0
+    );
+  } catch {
+    return false;
+  }
+}
+
+interface SubmitModalProps {
+  bountyId: string;
+}
+
+export function SubmitModal({ bountyId }: SubmitModalProps) {
   const { isConnected, address, isLoading } = useWallet();
-  const { submitEntryAsync, isCreating, reset } = useSubmitEntry();
+  const { mutateAsync: submitWork, isPending, reset } = useSubmitWork();
 
   const [isOpen, setIsOpen] = useState(false);
-  const [category, setCategory] = useState<ArenaCategory | "">("");
-  const [content, setContent] = useState("");
-  const [feePresetLevel, setFeePresetLevel] = useState<FeePresetLevel>("standard");
-  const [errors, setErrors] = useState({ category: "", content: "" });
+  const [proofLink, setProofLink] = useState("");
+  const [description, setDescription] = useState("");
+  const [errors, setErrors] = useState({ proofLink: "", description: "" });
   const [submitError, setSubmitError] = useState("");
 
   useEffect(() => {
-    if (!isConnected && isOpen && !isCreating) {
+    if (!isConnected && isOpen && !isPending) {
       setIsOpen(false);
     }
-  }, [isConnected, isOpen, isCreating]);
+  }, [isConnected, isOpen, isPending]);
 
   const validateForm = (): boolean => {
-    const newErrors = { category: "", content: "" };
+    const newErrors = { proofLink: "", description: "" };
+    const trimmedLink = proofLink.trim();
+    const trimmedDescription = description.trim();
 
-    if (!category) {
-      newErrors.category = "Choose a category";
+    if (!trimmedLink) {
+      newErrors.proofLink = "Proof link is required";
+    } else if (!isHttpUrl(trimmedLink)) {
+      newErrors.proofLink = "Enter a valid http or https URL";
     }
-    if (!content.trim()) {
-      newErrors.content = "Content is required";
-    } else if (content.trim().length < 20) {
-      newErrors.content = "Give the judge a bit more to work with (20+ characters)";
+
+    if (!trimmedDescription) {
+      newErrors.description = "Description is required";
+    } else if (trimmedDescription.length < MIN_DESCRIPTION_LENGTH) {
+      newErrors.description = `Give validators a bit more to work with (${MIN_DESCRIPTION_LENGTH}+ characters)`;
     }
 
     setErrors(newErrors);
@@ -61,16 +81,21 @@ export function SubmitModal() {
       return;
     }
 
-    if (!validateForm() || !category) {
+    if (!bountyId) {
+      error("A bounty is required to submit work");
+      return;
+    }
+
+    if (!validateForm()) {
       return;
     }
 
     setSubmitError("");
     try {
-      await submitEntryAsync({
-        category,
-        content: content.trim(),
-        feePresetLevel,
+      await submitWork({
+        bountyId,
+        proofLink: proofLink.trim(),
+        description: description.trim(),
       });
       resetForm();
       setIsOpen(false);
@@ -86,14 +111,14 @@ export function SubmitModal() {
   };
 
   const resetForm = () => {
-    setCategory("");
-    setContent("");
-    setErrors({ category: "", content: "" });
+    setProofLink("");
+    setDescription("");
+    setErrors({ proofLink: "", description: "" });
     setSubmitError("");
   };
 
   const handleOpenChange = (open: boolean) => {
-    if (!open && !isCreating) {
+    if (!open && !isPending) {
       resetForm();
       reset();
     }
@@ -103,94 +128,73 @@ export function SubmitModal() {
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="gradient" disabled={!isConnected || !address || isLoading}>
+        <Button
+          variant="gradient"
+          disabled={!isConnected || !address || isLoading || !bountyId}
+        >
           <Plus className="w-4 h-4 mr-2" />
-          Submit Entry
+          Submit work
         </Button>
       </DialogTrigger>
       <DialogContent className="brand-card border-2 sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold">Submit work</DialogTitle>
           <DialogDescription>
-            Independent GenLayer validators compare your proof against the bounty spec.
+            Share a public link (GitHub, gist, docs page) that proves the spec
+            is met. Independent GenLayer validators will fetch it and compare it
+            against the bounty.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6 mt-4">
-          <div className="space-y-3">
-            <Label>Category</Label>
-            <div className="grid grid-cols-3 gap-3">
-              {CATEGORIES.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => {
-                    setCategory(option);
-                    setErrors({ ...errors, category: "" });
-                  }}
-                  className={`p-3 rounded-lg border-2 transition-all ${
-                    category === option
-                      ? "border-accent bg-accent/20 text-accent"
-                      : "border-white/10 hover:border-white/20"
-                  }`}
-                >
-                  <div className="font-semibold text-sm">{option}</div>
-                </button>
-              ))}
-            </div>
-            {errors.category && (
-              <p className="text-xs text-destructive">{errors.category}</p>
+          <div className="space-y-2">
+            <Label htmlFor="proofLink" className="flex items-center gap-2">
+              <Link2 className="w-4 h-4" />
+              Proof link
+            </Label>
+            <Input
+              id="proofLink"
+              type="url"
+              value={proofLink}
+              onChange={(e) => {
+                setProofLink(e.target.value);
+                setErrors({ ...errors, proofLink: "" });
+              }}
+              placeholder="https://github.com/you/repo/blob/main/README.md"
+              disabled={isPending}
+              aria-invalid={!!errors.proofLink}
+              className={errors.proofLink ? "border-destructive" : ""}
+            />
+            {errors.proofLink && (
+              <p className="text-xs text-destructive">{errors.proofLink}</p>
             )}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="content" className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4" />
-              Content
+            <Label htmlFor="description" className="flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              What did you deliver?
             </Label>
-            <textarea
-              id="content"
-              value={content}
+            <Textarea
+              id="description"
+              value={description}
               onChange={(e) => {
-                setContent(e.target.value);
-                setErrors({ ...errors, content: "" });
+                setDescription(e.target.value);
+                setErrors({ ...errors, description: "" });
               }}
-              placeholder="Pitch, joke, or poem..."
+              placeholder="A short note for validators: what to look at, and how it matches the spec."
               rows={5}
-              className={`w-full rounded-md border bg-transparent px-3 py-2 text-sm outline-none ${
-                errors.content ? "border-destructive" : "border-white/10"
-              }`}
+              disabled={isPending}
+              aria-invalid={!!errors.description}
+              className={errors.description ? "border-destructive" : ""}
             />
-            {errors.content && (
-              <p className="text-xs text-destructive">{errors.content}</p>
+            <p className="text-xs text-muted-foreground">
+              {description.trim().length}/{MIN_DESCRIPTION_LENGTH} characters
+              minimum
+            </p>
+            {errors.description && (
+              <p className="text-xs text-destructive">{errors.description}</p>
             )}
-          </div>
-
-          <div className="space-y-3">
-            <Label>Fee Preset</Label>
-            <div className="grid grid-cols-3 gap-2">
-              {(
-                [
-                  { value: "low", label: "Low", detail: "No appeals" },
-                  { value: "standard", label: "Standard", detail: "1 appeal" },
-                  { value: "high", label: "High", detail: "2 appeals" },
-                ] as const
-              ).map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setFeePresetLevel(option.value)}
-                  className={`rounded-md border px-3 py-2 text-left transition-all ${
-                    feePresetLevel === option.value
-                      ? "border-accent bg-accent/20 text-accent"
-                      : "border-white/10 hover:border-white/20"
-                  }`}
-                >
-                  <div className="text-sm font-semibold">{option.label}</div>
-                  <div className="mt-0.5 text-xs text-muted-foreground">{option.detail}</div>
-                </button>
-              ))}
-            </div>
           </div>
 
           {submitError && (
@@ -203,7 +207,7 @@ export function SubmitModal() {
               variant="secondary"
               className="flex-1"
               onClick={() => setIsOpen(false)}
-              disabled={isCreating}
+              disabled={isPending}
             >
               Cancel
             </Button>
@@ -211,15 +215,15 @@ export function SubmitModal() {
               type="submit"
               variant="gradient"
               className="flex-1"
-              disabled={isCreating}
+              disabled={isPending}
             >
-              {isCreating ? (
+              {isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Judging...
+                  Submitting…
                 </>
               ) : (
-                "Submit & Judge"
+                "Submit for review"
               )}
             </Button>
           </div>

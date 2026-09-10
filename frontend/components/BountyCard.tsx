@@ -3,12 +3,10 @@
 import Link from "next/link";
 import type { Bounty } from "@/lib/contracts/types";
 import { formatDeadline, formatGen, isExpired } from "@/lib/format";
-import { useI18n } from "@/lib/i18n/LanguageProvider";
 import { AddressDisplay } from "./AddressDisplay";
 import { StatusBadge } from "./StatusBadge";
 
 export function BountyCard({ bounty }: { bounty: Bounty }) {
-  const { t, locale } = useI18n();
   const expired = bounty.status === "Open" && isExpired(bounty.deadline);
 
   return (
@@ -28,10 +26,10 @@ export function BountyCard({ bounty }: { bounty: Bounty }) {
           {formatGen(bounty.reward)} GEN
         </span>
         <span className="text-muted-foreground">
-          {t.home.deadline}: {formatDeadline(bounty.deadline, locale)}
+          Deadline: {formatDeadline(bounty.deadline)}
         </span>
         {expired && (
-          <span className="text-destructive text-xs">{t.home.expired}</span>
+          <span className="text-destructive text-xs">Expired</span>
         )}
       </div>
       <div className="mt-3 text-xs text-muted-foreground">

@@ -22,13 +22,22 @@ export function parseGen(input: string): bigint {
   return BigInt(whole || "0") * 10n ** GEN_DECIMALS + BigInt(fracPadded || "0");
 }
 
-export function formatDeadline(unix: number, locale: string): string {
+export function formatDeadline(unix: number, locale = "en-US"): string {
   if (!unix) return "—";
   return new Date(unix * 1000).toLocaleString(locale, {
     dateStyle: "medium",
     timeStyle: "short",
   });
 }
+
+export const STATUS_LABELS: Record<BountyStatus, string> = {
+  Open: "Open",
+  InReview: "In review",
+  Approved: "Approved",
+  Rejected: "Rejected",
+  Paid: "Paid",
+  Appealed: "Appealed",
+};
 
 export function isExpired(unix: number): boolean {
   return unix > 0 && unix * 1000 < Date.now();
