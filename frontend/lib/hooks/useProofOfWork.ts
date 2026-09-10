@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import ProofOfWork from "../contracts/ProofOfWork";
 import { getContractAddress, getStudioUrl } from "../genlayer/client";
 import { useWallet } from "../genlayer/wallet";
@@ -13,14 +13,17 @@ export function useProofOfWorkContract(): ProofOfWork | null {
   const contractAddress = getContractAddress();
   const studioUrl = getStudioUrl();
 
-  return useMemo(() => {
+  useEffect(() => {
     if (!contractAddress) {
       configError(
         "Setup required",
         "Set NEXT_PUBLIC_CONTRACT_ADDRESS in frontend/.env to the deployed Proof of Work contract."
       );
-      return null;
     }
+  }, [contractAddress]);
+
+  return useMemo(() => {
+    if (!contractAddress) return null;
     return new ProofOfWork(contractAddress, address, studioUrl);
   }, [contractAddress, address, studioUrl]);
 }
@@ -36,12 +39,13 @@ export function useBounties() {
   });
 }
 
-export function useBounty(id: string) {
+export function useBounty(id: string | undefined) {
   const contract = useProofOfWorkContract();
   return useQuery<Bounty, Error>({
     queryKey: ["bounty", id],
     queryFn: () => {
       if (!contract) throw new Error("Contract not configured");
+      if (!id) throw new Error("Bounty id is required");
       return contract.getBounty(id);
     },
     enabled: !!contract && !!id,
