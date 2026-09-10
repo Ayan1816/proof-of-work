@@ -48,10 +48,22 @@ export function getStudioUrl(): string {
 /**
  * Get the contract address from environment variables
  */
+function isValidContractAddress(address: string): boolean {
+  return /^0x[a-fA-F0-9]{40}$/.test(address.trim());
+}
+
 export function getContractAddress(): string {
-  const address = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
+  const address = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "").trim();
   if (!address) {
     // Return empty string during build, error will be shown in UI during runtime
+    return "";
+  }
+  if (!isValidContractAddress(address)) {
+    console.error(
+      "Invalid NEXT_PUBLIC_CONTRACT_ADDRESS. Expected 0x plus 40 hex characters, got:",
+      address,
+      `(${address.startsWith("0x") ? address.length - 2 : address.length} hex chars)`
+    );
     return "";
   }
   return address;

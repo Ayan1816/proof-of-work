@@ -289,9 +289,20 @@ class ProofOfWork {
 
   async listBounties(): Promise<Bounty[]> {
     const raw = await this.read("list_bounties");
-    const rows = Array.isArray(raw) ? raw : Object.values(asRecord(raw));
+    const rows = Array.isArray(raw)
+      ? raw
+      : raw instanceof Map
+        ? Array.from(raw.values())
+        : Object.values(asRecord(raw));
     return rows
-      .map(asBounty)
+      .map((row) => {
+        try {
+          return asBounty(row);
+        } catch (err) {
+          console.warn("Skipping unreadable bounty row", err, row);
+          return null;
+        }
+      })
       .filter((item): item is Bounty => Boolean(item))
       .sort((a, b) => Number(b.id) - Number(a.id));
   }

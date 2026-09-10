@@ -28,6 +28,7 @@ export default function HomePage() {
     isLoading,
     isError,
     isFetching,
+    error,
     refetch,
   } = useBounties();
   const [query, setQuery] = useState("");
@@ -114,6 +115,11 @@ export default function HomePage() {
         ) : isError ? (
           <div className="brand-card p-8 text-center space-y-4">
             <p className="text-destructive">Something went wrong</p>
+            {error?.message && (
+              <p className="text-xs text-muted-foreground break-all max-w-xl mx-auto">
+                {error.message}
+              </p>
+            )}
             <Button type="button" variant="outline" onClick={() => refetch()}>
               Try again
             </Button>
