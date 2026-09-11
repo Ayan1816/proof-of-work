@@ -8,6 +8,9 @@ import { createWalletClient, custom, type WalletClient } from "viem";
 export const GENLAYER_CHAIN_ID = parseInt(process.env.NEXT_PUBLIC_GENLAYER_CHAIN_ID || "61999");
 export const GENLAYER_CHAIN_ID_HEX = `0x${GENLAYER_CHAIN_ID.toString(16).toUpperCase()}`;
 
+export const PUBLIC_GENLAYER_RPC_URL =
+  process.env.NEXT_PUBLIC_GENLAYER_RPC_URL || "https://studio.genlayer.com/api";
+
 export const GENLAYER_NETWORK = {
   chainId: GENLAYER_CHAIN_ID_HEX,
   chainName: process.env.NEXT_PUBLIC_GENLAYER_CHAIN_NAME || "GenLayer Studio",
@@ -16,7 +19,7 @@ export const GENLAYER_NETWORK = {
     symbol: process.env.NEXT_PUBLIC_GENLAYER_SYMBOL || "GEN",
     decimals: 18,
   },
-  rpcUrls: [process.env.NEXT_PUBLIC_GENLAYER_RPC_URL || "https://studio.genlayer.com/api"],
+  rpcUrls: [PUBLIC_GENLAYER_RPC_URL],
   blockExplorerUrls: [],
 };
 
@@ -40,9 +43,12 @@ declare global {
  * Get the GenLayer RPC URL from environment variables
  */
 export function getStudioUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_GENLAYER_RPC_URL || "https://studio.genlayer.com/api"
-  );
+  // Browser calls must go through the same-origin proxy. Direct browser
+  // POSTs to studio.genlayer.com/api can receive Cloudflare HTML instead of JSON.
+  if (typeof window !== "undefined") {
+    return `${window.location.origin}/api/rpc`;
+  }
+  return PUBLIC_GENLAYER_RPC_URL;
 }
 
 /**

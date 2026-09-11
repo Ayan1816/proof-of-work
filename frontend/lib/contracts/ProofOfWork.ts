@@ -251,12 +251,19 @@ function assertSuccessfulReceipt(receipt: any): void {
 }
 
 function buildClient(address?: string | null, studioUrl?: string) {
-  const config: any = { chain: studionet };
+  const rpcUrl = studioUrl || "https://studio.genlayer.com/api";
+  const chain = {
+    ...studionet,
+    rpcUrls: {
+      default: {
+        http: [rpcUrl],
+      },
+    },
+  };
+  const config: any = { chain, endpoint: rpcUrl };
   if (address) config.account = address as `0x${string}`;
-  if (studioUrl) config.endpoint = studioUrl;
-  if (typeof window !== "undefined" && (window as any).ethereum) {
-    config.provider = (window as any).ethereum;
-  }
+  // Do not attach window.ethereum for reads. gen_call must hit the JSON-RPC
+  // endpoint (or our same-origin proxy), not MetaMask.
   return createClient(config);
 }
 
