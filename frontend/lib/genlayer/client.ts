@@ -3,13 +3,17 @@
 import { createClient } from "genlayer-js";
 import { studionet } from "genlayer-js/chains";
 import { createWalletClient, custom, type WalletClient } from "viem";
+import { sanitizeRpcUrl } from "./rpc";
+
+export { sanitizeRpcUrl, DEFAULT_GENLAYER_RPC_URL } from "./rpc";
 
 // GenLayer Network Configuration (from environment variables with fallbacks)
 export const GENLAYER_CHAIN_ID = parseInt(process.env.NEXT_PUBLIC_GENLAYER_CHAIN_ID || "61999");
 export const GENLAYER_CHAIN_ID_HEX = `0x${GENLAYER_CHAIN_ID.toString(16).toUpperCase()}`;
 
-export const PUBLIC_GENLAYER_RPC_URL =
-  process.env.NEXT_PUBLIC_GENLAYER_RPC_URL || "https://studio.genlayer.com/api";
+export const PUBLIC_GENLAYER_RPC_URL = sanitizeRpcUrl(
+  process.env.NEXT_PUBLIC_GENLAYER_RPC_URL
+);
 
 export const GENLAYER_NETWORK = {
   chainId: GENLAYER_CHAIN_ID_HEX,
