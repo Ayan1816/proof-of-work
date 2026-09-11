@@ -26,12 +26,14 @@ export function ProfileView({
     data: reputation,
     isLoading: reputationLoading,
     isError: reputationError,
+    error: reputationQueryError,
     refetch: refetchReputation,
   } = useReputation(address);
   const {
     data: bounties = [],
     isLoading: bountiesLoading,
     isError: bountiesError,
+    error: bountiesQueryError,
     refetch: refetchBounties,
   } = useBounties();
 
@@ -74,6 +76,7 @@ export function ProfileView({
 
   const loading = reputationLoading || bountiesLoading;
   const error = reputationError || bountiesError;
+  const queryError = reputationQueryError || bountiesQueryError;
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -110,7 +113,9 @@ export function ProfileView({
         </div>
       ) : error ? (
         <div className="brand-card p-8 text-center space-y-4">
-          <p className="text-destructive">Something went wrong</p>
+          <p className="text-destructive break-all whitespace-pre-wrap">
+            {queryError?.message || "Something went wrong"}
+          </p>
           <Button
             type="button"
             variant="outline"

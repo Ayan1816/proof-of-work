@@ -151,8 +151,9 @@ export function WalletButton() {
                 {connectionError && (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Something went wrong</AlertTitle>
-                    <AlertDescription>{connectionError}</AlertDescription>
+                    <AlertTitle className="text-destructive break-all">
+                      {connectionError}
+                    </AlertTitle>
                   </Alert>
                 )}
               </>
@@ -229,8 +230,9 @@ export function WalletButton() {
           {connectionError && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Something went wrong</AlertTitle>
-              <AlertDescription>{connectionError}</AlertDescription>
+              <AlertTitle className="text-destructive break-all">
+                {connectionError}
+              </AlertTitle>
             </Alert>
           )}
 

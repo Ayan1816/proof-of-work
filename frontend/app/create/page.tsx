@@ -13,6 +13,7 @@ import { useCreateBounty, useProofOfWorkContract } from "@/lib/hooks/useProofOfW
 import { useWallet } from "@/lib/genlayer/wallet";
 import { parseGen } from "@/lib/format";
 import { error as toastError } from "@/lib/utils/toast";
+import { errorMessage } from "@/lib/utils/errorMessage";
 
 const MIN_TITLE_LEN = 4;
 const MIN_SPEC_LEN = 20;
@@ -110,13 +111,8 @@ export default function CreateBountyPage() {
     try {
       await createBounty(input);
       router.push("/");
-    } catch (err: any) {
-      setSubmitError(
-        err?.shortMessage ||
-          err?.cause?.message ||
-          err?.message ||
-          "Something went wrong"
-      );
+    } catch (err: unknown) {
+      setSubmitError(errorMessage(err));
     }
   };
 

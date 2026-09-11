@@ -47,6 +47,7 @@ export default function BountyDetailPage() {
     data: bounty,
     isLoading,
     isError,
+    error,
     refetch,
   } = useBounty(bountyId);
   const submissionId = hasSubmissionId(bounty?.submissionId)
@@ -103,7 +104,9 @@ export default function BountyDetailPage() {
           </div>
         ) : isError || !bounty ? (
           <div className="brand-card p-10 text-center space-y-4">
-            <p className="text-destructive">Bounty not found.</p>
+            <p className="text-destructive break-all whitespace-pre-wrap">
+              {error?.message || "Bounty not found."}
+            </p>
             <Button type="button" variant="outline" onClick={() => refetch()}>
               Try again
             </Button>

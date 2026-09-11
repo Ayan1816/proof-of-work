@@ -5,6 +5,7 @@ import { Plus, Loader2, Link2, FileText } from "lucide-react";
 import { useSubmitWork } from "@/lib/hooks/useProofOfWork";
 import { useWallet } from "@/lib/genlayer/wallet";
 import { error } from "@/lib/utils/toast";
+import { errorMessage } from "@/lib/utils/errorMessage";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -100,13 +101,8 @@ export function SubmitModal({ bountyId }: SubmitModalProps) {
       resetForm();
       setIsOpen(false);
       reset();
-    } catch (err: any) {
-      setSubmitError(
-        err?.shortMessage ||
-          err?.cause?.message ||
-          err?.message ||
-          "The submission did not save. Please try again."
-      );
+    } catch (err: unknown) {
+      setSubmitError(errorMessage(err));
     }
   };
 

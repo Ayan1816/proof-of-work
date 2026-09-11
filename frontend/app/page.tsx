@@ -114,12 +114,9 @@ export default function HomePage() {
           </div>
         ) : isError ? (
           <div className="brand-card p-8 text-center space-y-4">
-            <p className="text-destructive">Something went wrong</p>
-            {error?.message && (
-              <p className="text-xs text-muted-foreground break-all max-w-xl mx-auto">
-                {error.message}
-              </p>
-            )}
+            <p className="text-destructive break-all whitespace-pre-wrap">
+              {error?.message || "Something went wrong"}
+            </p>
             <Button type="button" variant="outline" onClick={() => refetch()}>
               Try again
             </Button>
