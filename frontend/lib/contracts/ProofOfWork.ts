@@ -53,6 +53,7 @@ const BOUNTY_STATUSES = new Set<BountyStatus>([
   "Rejected",
   "Paid",
   "Appealed",
+  "Refunded",
 ]);
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -398,6 +399,10 @@ class ProofOfWork {
 
   appeal(bountyId: string) {
     return this.write("appeal", [bountyId], 0n);
+  }
+
+  refund(bountyId: string) {
+    return this.write("refund", [bountyId], 0n);
   }
 }
 

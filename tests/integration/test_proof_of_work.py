@@ -8,7 +8,13 @@ from gltest import get_contract_factory, default_account
 from gltest.helpers import load_fixture
 from gltest.assertions import tx_execution_succeeded
 
-from tests.integration.fixtures import SAMPLE_SPEC, SAMPLE_WORK
+from tests.integration.fixtures import (
+    LIVE_DESCRIPTION,
+    LIVE_PROOF_URL,
+    LIVE_SPEC,
+    SAMPLE_SPEC,
+    SAMPLE_WORK,
+)
 
 
 @pytest.mark.integration
@@ -95,3 +101,51 @@ def test_judge_and_release_missing_bounty_revert():
         assert not tx_execution_succeeded(result)
     except Exception:
         pass
+    try:
+        result = contract.refund(args=["1"])
+        assert not tx_execution_succeeded(result)
+    except Exception:
+        pass
+
+
+@pytest.mark.integration
+def test_live_web_fetch_and_validator_consensus(accounts):
+    """Studio-backed path: live web fetch plus multi-validator consensus.
+
+    Validators independently fetch https://example.com/ and must agree on a
+    verdict. This is the CI integration check; it is not a mocked direct test.
+    """
+    factory = get_contract_factory("ProofOfWork")
+    creator = accounts[0]
+    submitter = accounts[1]
+    contract = factory.deploy(account=creator)
+
+    reward = 10**18
+    deadline = 2_000_000_000
+    created = contract.create_bounty(
+        args=["Document the Example Domain", LIVE_SPEC, reward, deadline],
+        value=reward,
+        account=creator,
+        wait_interval=10000,
+        wait_retries=20,
+    )
+    assert tx_execution_succeeded(created)
+
+    submitted = contract.submit_work(
+        args=["1", LIVE_PROOF_URL, LIVE_DESCRIPTION],
+        account=submitter,
+        wait_interval=10000,
+        wait_retries=20,
+    )
+    assert tx_execution_succeeded(submitted)
+
+    judged = contract.judge_submission(
+        args=["1"],
+        wait_interval=15000,
+        wait_retries=40,
+    )
+    assert tx_execution_succeeded(judged)
+
+    bounty = contract.get_bounty(args=["1"])
+    assert bounty["status"] in ("Approved", "Rejected")
+    assert str(bounty["verdict_reasoning"]).strip()

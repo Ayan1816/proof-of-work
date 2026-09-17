@@ -4,7 +4,8 @@ export type BountyStatus =
   | "Approved"
   | "Rejected"
   | "Paid"
-  | "Appealed";
+  | "Appealed"
+  | "Refunded";
 
 export interface Bounty {
   id: string;

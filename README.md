@@ -13,7 +13,7 @@ Proof of Work is an AI-verified bounty and grant platform on GenLayer. Anyone ca
 - **Direct mode tests** — fast, in-memory unit tests with LLM mocking (~ms per test)
 - **Integration tests** — full end-to-end tests against GenLayer Studio
 - **Contract linting** — static analysis to catch common contract issues before deployment
-- **CI pipeline** — GitHub Actions workflow for linting and direct tests
+- **CI pipeline** — GitHub Actions workflow for linting, direct tests, and Studio-backed integration tests
 - A production-ready Next.js 15 frontend with TypeScript, TanStack Query, and Radix UI
 - Configuration file template and deployment scripts
 
@@ -116,7 +116,7 @@ The app will be available at http://localhost:3000/.
 1. **Post a bounty**: A creator locks a reward in escrow with a spec and a deadline.
 2. **Submit work**: A contributor shares a proof link (for example a GitHub URL) and a short description.
 3. **Independent judgment**: The leader AI fetches the proof and compares it to the spec. Validators independently re-read the same work and must agree on Approved or Rejected.
-4. **Payout or appeal**: An Approved verdict can release escrow to the contributor. Either party can appeal a contested verdict.
+4. **Payout, refund, or appeal**: An Approved verdict can release escrow to the contributor. If the bounty is rejected, expired, or appeal-exhausted, the creator can refund the locked GEN. Either party can appeal a contested verdict.
 
 A non-empty reasoning string is **not** enough. Validators must independently evaluate whether the submitted work matches the spec.
 

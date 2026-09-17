@@ -28,3 +28,47 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt
       - run: pytest tests/direct/ -v
+
+  test-integration:
+    name: Studio Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+      - name: Install GenLayer CLI
+        run: npm install -g genlayer
+      - name: Initialize and start Studio
+        run: |
+          genlayer init --headless --numValidators 3
+          genlayer up --headless --numValidators 3
+      - name: Wait for Studio RPC
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:4000/health >/dev/null; then
+              exit 0
+            fi
+            if curl -sf http://127.0.0.1:4000/ready >/dev/null; then
+              exit 0
+            fi
+            if curl -sf -X POST http://127.0.0.1:4000/api \
+              -H 'content-type: application/json' \
+              -d '{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}' \
+              >/dev/null; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Studio did not become ready"
+          exit 1
+      - name: Run Studio-backed integration tests
+        run: gltest tests/integration/test_proof_of_work.py -v -s --network localnet

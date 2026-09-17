@@ -19,6 +19,7 @@ const STATUS_FILTERS: Array<"all" | BountyStatus> = [
   "Rejected",
   "Paid",
   "Appealed",
+  "Refunded",
 ];
 
 export default function HomePage() {

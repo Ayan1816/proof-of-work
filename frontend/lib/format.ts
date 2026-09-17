@@ -37,6 +37,7 @@ export const STATUS_LABELS: Record<BountyStatus, string> = {
   Rejected: "Rejected",
   Paid: "Paid",
   Appealed: "Appealed",
+  Refunded: "Refunded",
 };
 
 export function isExpired(unix: number): boolean {
@@ -50,6 +51,7 @@ export const STATUS_STYLES: Record<BountyStatus, string> = {
   Rejected: "bg-red-500/15 text-red-300 border-red-500/30",
   Paid: "bg-violet-500/15 text-violet-300 border-violet-500/30",
   Appealed: "bg-orange-500/15 text-orange-300 border-orange-500/30",
+  Refunded: "bg-zinc-500/15 text-zinc-300 border-zinc-500/30",
 };
 
 export function sameWallet(a?: string, b?: string): boolean {

@@ -23,6 +23,7 @@ import {
   useBounty,
   useJudgeSubmission,
   useProofOfWorkContract,
+  useRefund,
   useReleasePayment,
   useSubmission,
 } from "@/lib/hooks/useProofOfWork";
@@ -59,6 +60,7 @@ export default function BountyDetailPage() {
   const judge = useJudgeSubmission();
   const release = useReleasePayment();
   const appeal = useAppeal();
+  const refund = useRefund();
 
   const expired = bounty ? isExpired(bounty.deadline) : false;
   const isCreator = sameWallet(address || undefined, bounty?.creator);
@@ -75,8 +77,13 @@ export default function BountyDetailPage() {
     (bounty?.status === "Approved" || bounty?.status === "Rejected") &&
     (isCreator || isSubmitter) &&
     (bounty?.appealCount || 0) < 1;
+  const canRefund =
+    Boolean(isCreator && bounty?.escrowLocked) &&
+    (bounty?.status === "Rejected" ||
+      (bounty?.status === "Open" && expired));
 
-  const actionPending = judge.isPending || release.isPending || appeal.isPending;
+  const actionPending =
+    judge.isPending || release.isPending || appeal.isPending || refund.isPending;
 
   return (
     <PageShell>
@@ -253,9 +260,11 @@ export default function BountyDetailPage() {
                     <Lock className="w-4 h-4 text-accent" />
                     {bounty.status === "Paid"
                       ? "Paid to submitter"
-                      : bounty.escrowLocked
-                        ? "Locked in contract"
-                        : "Not locked"}
+                      : bounty.status === "Refunded"
+                        ? "Refunded to creator"
+                        : bounty.escrowLocked
+                          ? "Locked in contract"
+                          : "Not locked"}
                   </p>
                 </div>
                 {bounty.submitter && (
@@ -340,7 +349,28 @@ export default function BountyDetailPage() {
                     )}
                   </Button>
                 )}
-                {!canSubmit && !canJudge && !canRelease && !canAppeal && (
+                {canRefund && (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={actionPending}
+                    onClick={() => refund.mutate(bounty.id)}
+                  >
+                    {refund.isPending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Refunding…
+                      </>
+                    ) : (
+                      "Refund escrow"
+                    )}
+                  </Button>
+                )}
+                {!canSubmit &&
+                  !canJudge &&
+                  !canRelease &&
+                  !canAppeal &&
+                  !canRefund && (
                   <p className="text-sm text-muted-foreground">
                     No actions available for this bounty right now.
                   </p>

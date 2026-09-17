@@ -96,6 +96,12 @@ proof_of_work_contract_schema = {
                 "readonly": False,
                 "ret": "string",
             },
+            "refund": {
+                "kwparams": {},
+                "params": [["bounty_id", "string"]],
+                "readonly": False,
+                "ret": "string",
+            },
             "get_submission": {
                 "kwparams": {},
                 "params": [["submission_id", "string"]],
@@ -117,4 +123,12 @@ SAMPLE_WORK = (
 SAMPLE_UNRELATED = (
     "This is a poem about the moon and has nothing to do with the requested "
     "README or local test instructions."
+)
+LIVE_PROOF_URL = "https://example.com/"
+LIVE_SPEC = (
+    "The submitted page must identify itself as Example Domain and state that "
+    "this domain is for use in illustrative examples in documents."
+)
+LIVE_DESCRIPTION = (
+    "Public example.com homepage used as published proof of the domain page."
 )

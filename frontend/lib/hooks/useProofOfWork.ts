@@ -152,3 +152,10 @@ export function useAppeal() {
     { success: "Appeal filed", error: "Could not appeal" }
   );
 }
+
+export function useRefund() {
+  return useContractMutation(
+    (c, bountyId: string) => c.refund(bountyId),
+    { success: "Escrow refunded", error: "Could not refund escrow" }
+  );
+}
