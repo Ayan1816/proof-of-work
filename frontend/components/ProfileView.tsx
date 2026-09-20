@@ -96,6 +96,11 @@ export function ProfileView({
           {address}
         </h1>
         <AddressDisplay address={address} maxLength={20} showCopy />
+        {isOwn && (
+          <Button asChild variant="outline" className="mt-4">
+            <Link href="/history">View transaction history</Link>
+          </Button>
+        )}
       </div>
 
       {!contract ? (

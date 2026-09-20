@@ -19,6 +19,21 @@ import {
 } from "../genlayer/client";
 import { formatGen } from "../format";
 import { errorMessage } from "../utils/errorMessage";
+import {
+  ACTION_LABELS,
+  isHistoryAction,
+  type HistoryAction,
+} from "../history/types";
+import {
+  createHistoryId,
+  recordHistoryFailure,
+  upsertHistoryItem,
+} from "../history/store";
+import {
+  extractGasFeeWei,
+  extractGasUsed,
+  extractReceiptHash,
+} from "../history/receipt";
 
 const FAILED_TX_STATUSES = new Set([
   "UNDETERMINED",
@@ -378,6 +393,15 @@ class ProofOfWork {
     return BigInt(raw ?? 0);
   }
 
+  private async bountyReward(bountyId: string): Promise<bigint> {
+    try {
+      const bounty = await this.getBounty(bountyId);
+      return bounty.reward;
+    } catch {
+      return 0n;
+    }
+  }
+
   private async write(
     functionName: string,
     args: unknown[],
@@ -385,8 +409,54 @@ class ProofOfWork {
     retries = 80,
     interval = 5000
   ): Promise<TransactionReceipt> {
-    await ensureGenLayerNetwork();
-    const writeClient: any = buildClient(this.account, this.studioUrl, true);
+    const action: HistoryAction | null = isHistoryAction(functionName)
+      ? functionName
+      : null;
+    const historyId = createHistoryId();
+    const wallet = this.account || "";
+    const bountyIdArg =
+      functionName === "create_bounty"
+        ? ""
+        : typeof args[0] === "string"
+          ? args[0]
+          : "";
+    const titleArg =
+      functionName === "create_bounty" && typeof args[0] === "string"
+        ? args[0]
+        : "";
+    let amountWei = value;
+    if (
+      (functionName === "release_payment" || functionName === "refund") &&
+      bountyIdArg
+    ) {
+      const locked = await this.bountyReward(bountyIdArg);
+      if (locked > 0n) amountWei = locked;
+    }
+    if (action && wallet) {
+      upsertHistoryItem(wallet, {
+        id: historyId,
+        action,
+        label: ACTION_LABELS[action],
+        status: "pending",
+        amountWei: amountWei.toString(),
+        bountyId: bountyIdArg,
+        title: titleArg,
+        timestamp: Date.now(),
+        source: "wallet",
+      });
+    }
+
+    let writeClient: any;
+    try {
+      await ensureGenLayerNetwork();
+      writeClient = buildClient(this.account, this.studioUrl, true);
+    } catch (err) {
+      const message = errorMessage(err, "Could not prepare the wallet transaction.");
+      if (action && wallet) {
+        recordHistoryFailure(wallet, historyId, action, message);
+      }
+      throw new Error(message);
+    }
     const feePreset: FeePresetEstimate | undefined = await estimateWriteFeePreset(
       writeClient,
       { address: this.contractAddress, functionName, args, value },
@@ -402,21 +472,64 @@ class ProofOfWork {
         value,
         ...(fees ? { fees } : {}),
       });
+      if (action && wallet) {
+        upsertHistoryItem(wallet, {
+          id: historyId,
+          action,
+          hash: txHash,
+          status: "pending",
+        });
+      }
     } catch (err) {
-      throw new Error(errorMessage(err, "Wallet rejected or could not send the transaction."));
+      const message = errorMessage(
+        err,
+        "Wallet rejected or could not send the transaction."
+      );
+      if (action && wallet) {
+        recordHistoryFailure(wallet, historyId, action, message);
+      }
+      throw new Error(message);
     }
-    const receipt = await writeClient.waitForTransactionReceipt({
-      hash: txHash,
-      status: TransactionStatus.ACCEPTED,
-      retries,
-      interval,
-    });
-    assertSuccessfulReceipt(receipt);
-    return {
-      ...(receipt as TransactionReceipt),
-      hash: (receipt as any)?.hash || txHash,
-      payload: extractJsonPayload(receipt),
-    };
+    try {
+      const receipt = await writeClient.waitForTransactionReceipt({
+        hash: txHash,
+        status: TransactionStatus.ACCEPTED,
+        retries,
+        interval,
+      });
+      assertSuccessfulReceipt(receipt);
+      const payload = extractJsonPayload(receipt);
+      const gasUsed = extractGasUsed(receipt);
+      if (action && wallet) {
+        upsertHistoryItem(wallet, {
+          id: historyId,
+          action,
+          status: "success",
+          hash: extractReceiptHash(receipt, txHash),
+          gasUsed,
+          gasFeeWei: extractGasFeeWei(receipt, gasUsed),
+          bountyId: String(payload.id || bountyIdArg || ""),
+          title: titleArg,
+        });
+      }
+      return {
+        ...(receipt as TransactionReceipt),
+        hash: (receipt as any)?.hash || txHash,
+        payload,
+      };
+    } catch (err) {
+      const message = errorMessage(err, "Transaction failed.");
+      if (action && wallet) {
+        recordHistoryFailure(wallet, historyId, action, message);
+        upsertHistoryItem(wallet, {
+          id: historyId,
+          action,
+          hash: txHash,
+          status: "failed",
+        });
+      }
+      throw err instanceof Error ? err : new Error(message);
+    }
   }
 
   async createBounty(

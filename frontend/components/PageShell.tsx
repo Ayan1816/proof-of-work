@@ -30,6 +30,9 @@ export function PageShell({ children }: { children: ReactNode }) {
             >
               Studio
             </a>
+            <Link href="/history" className="hover:text-accent transition-colors">
+              History
+            </Link>
             <Link href="/faq" className="hover:text-accent transition-colors">
               FAQ
             </Link>
