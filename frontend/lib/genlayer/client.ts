@@ -9,11 +9,37 @@ export { sanitizeRpcUrl, DEFAULT_GENLAYER_RPC_URL } from "./rpc";
 
 // GenLayer Network Configuration (from environment variables with fallbacks)
 export const GENLAYER_CHAIN_ID = parseInt(process.env.NEXT_PUBLIC_GENLAYER_CHAIN_ID || "61999");
-export const GENLAYER_CHAIN_ID_HEX = `0x${GENLAYER_CHAIN_ID.toString(16).toUpperCase()}`;
+// EIP-155 QUANTITY is lowercase hex. Uppercase 0xF20F makes some wallets
+// (notably Rabby) fail switch/add or estimate against the wrong chain.
+export const GENLAYER_CHAIN_ID_HEX = `0x${GENLAYER_CHAIN_ID.toString(16).toLowerCase()}`;
 
 export const PUBLIC_GENLAYER_RPC_URL = sanitizeRpcUrl(
   process.env.NEXT_PUBLIC_GENLAYER_RPC_URL
 );
+
+export function getWalletRpcUrl(): string {
+  // Wallet extensions cannot use the dApp's in-page fetch proxy unless we
+  // register it as the chain RPC. Same-origin /api/rpc avoids Cloudflare
+  // HTML on studio.genlayer.com, which makes Rabby think the GEN balance is 0.
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return `${window.location.origin}/api/rpc`;
+  }
+  return PUBLIC_GENLAYER_RPC_URL;
+}
+
+export function getGenLayerNetworkParams() {
+  return {
+    chainId: GENLAYER_CHAIN_ID_HEX,
+    chainName: process.env.NEXT_PUBLIC_GENLAYER_CHAIN_NAME || "GenLayer Studio",
+    nativeCurrency: {
+      name: process.env.NEXT_PUBLIC_GENLAYER_SYMBOL || "GEN",
+      symbol: process.env.NEXT_PUBLIC_GENLAYER_SYMBOL || "GEN",
+      decimals: 18,
+    },
+    rpcUrls: [getWalletRpcUrl()],
+    blockExplorerUrls: ["https://explorer-studio.genlayer.com"],
+  };
+}
 
 export const GENLAYER_NETWORK = {
   chainId: GENLAYER_CHAIN_ID_HEX,
@@ -24,13 +50,14 @@ export const GENLAYER_NETWORK = {
     decimals: 18,
   },
   rpcUrls: [PUBLIC_GENLAYER_RPC_URL],
-  blockExplorerUrls: [],
+  blockExplorerUrls: ["https://explorer-studio.genlayer.com"],
 };
 
 // Ethereum provider type from window
 interface EthereumProvider {
   isMetaMask?: boolean;
   isPhantom?: boolean;
+  isRabby?: boolean;
   providers?: EthereumProvider[];
   request: (args: { method: string; params?: any[] }) => Promise<any>;
   on: (event: string, handler: (...args: any[]) => void) => void;
@@ -89,20 +116,22 @@ export function isMetaMaskInstalled(): boolean {
 }
 
 /**
- * Get the Ethereum provider, preferring MetaMask when several wallets are injected.
+ * Get the injected EIP-1193 provider the user is actually using.
+ *
+ * Do not scan providers[] for isMetaMask: Rabby also sets isMetaMask, and
+ * picking a hidden MetaMask instance while the user is in Rabby sends the
+ * payable create_bounty tx to the wrong wallet/chain (Rabby then shows
+ * "Gas balance is not enough").
  */
 export function getEthereumProvider(): EthereumProvider | null {
   if (typeof window === "undefined") return null;
   const injected = window.ethereum;
   if (!injected) return null;
-
+  if (typeof injected.request === "function") return injected;
   const candidates = Array.isArray(injected.providers)
     ? injected.providers
     : [injected];
-  const metamask = candidates.find(
-    (provider) => provider.isMetaMask && !provider.isPhantom
-  );
-  return metamask || candidates[0] || injected;
+  return candidates.find((provider) => typeof provider.request === "function") || null;
 }
 
 /**
@@ -185,13 +214,30 @@ export async function addGenLayerNetwork(): Promise<void> {
   try {
     await provider.request({
       method: "wallet_addEthereumChain",
-      params: [GENLAYER_NETWORK],
+      params: [getGenLayerNetworkParams()],
     });
   } catch (error: any) {
     if (error.code === 4001) {
       throw new Error("User rejected adding the network");
     }
-    throw new Error(`Failed to add GenLayer network: ${error.message}`);
+    try {
+      await provider.request({
+        method: "wallet_addEthereumChain",
+        params: [
+          {
+            ...getGenLayerNetworkParams(),
+            rpcUrls: [PUBLIC_GENLAYER_RPC_URL],
+          },
+        ],
+      });
+    } catch (retryErr: any) {
+      if (retryErr.code === 4001) {
+        throw new Error("User rejected adding the network");
+      }
+      throw new Error(
+        `Failed to add GenLayer network: ${retryErr.message || error.message}`
+      );
+    }
   }
 }
 
@@ -211,14 +257,38 @@ export async function switchToGenLayerNetwork(): Promise<void> {
       params: [{ chainId: GENLAYER_CHAIN_ID_HEX }],
     });
   } catch (error: any) {
-    // If the chain is not added, add it
-    if (error.code === 4902) {
+    const message = String(error?.message || "");
+    const unrecognized =
+      error.code === 4902 ||
+      error.code === -32603 ||
+      /unrecognized chain|chain id.*not.*added|not been added/i.test(message);
+    if (unrecognized) {
       await addGenLayerNetwork();
+      await provider.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: GENLAYER_CHAIN_ID_HEX }],
+      });
     } else if (error.code === 4001) {
       throw new Error("User rejected switching the network");
     } else {
       throw new Error(`Failed to switch network: ${error.message}`);
     }
+  }
+}
+
+/**
+ * Make sure the injected wallet is on GenLayer Studio before a payable write.
+ * Studio's genlayer-js client skips this check (isStudio), so Rabby can
+ * estimate gas on Ethereum and report "Gas balance is not enough".
+ */
+export async function ensureGenLayerNetwork(): Promise<void> {
+  if (!(await isOnGenLayerNetwork())) {
+    await switchToGenLayerNetwork();
+  }
+  if (!(await isOnGenLayerNetwork())) {
+    throw new Error(
+      "Switch your wallet to GenLayer Studio (chain ID 61999) before sending this transaction."
+    );
   }
 }
 
@@ -334,10 +404,13 @@ export function createMetaMaskWalletClient(): WalletClient | null {
 export function createGenLayerClient(address?: string) {
   const config: any = {
     chain: studionet,
+    endpoint: getStudioUrl(),
   };
 
   if (address) {
     config.account = address as `0x${string}`;
+    const provider = getEthereumProvider();
+    if (provider) config.provider = provider;
   }
 
   try {
@@ -347,6 +420,7 @@ export function createGenLayerClient(address?: string) {
     // Return client without account on error
     return createClient({
       chain: studionet,
+      endpoint: getStudioUrl(),
     });
   }
 }

@@ -6,6 +6,7 @@ import ProofOfWork from "../contracts/ProofOfWork";
 import { getContractAddress, getStudioUrl } from "../genlayer/client";
 import { useWallet } from "../genlayer/wallet";
 import { success, error, configError } from "../utils/toast";
+import { errorMessage } from "../utils/errorMessage";
 import type { Bounty, Reputation, Submission } from "../contracts/types";
 
 export function useProofOfWorkContract(): ProofOfWork | null {
@@ -103,10 +104,9 @@ function useContractMutation<T>(
       ]);
       success(messages.success);
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       error(messages.error, {
-        description:
-          err?.shortMessage || err?.cause?.message || err?.message || "Try again.",
+        description: errorMessage(err, "Try again."),
       });
     },
   });

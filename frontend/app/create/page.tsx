@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateBounty, useProofOfWorkContract } from "@/lib/hooks/useProofOfWork";
 import { useWallet } from "@/lib/genlayer/wallet";
+import { switchToGenLayerNetwork } from "@/lib/genlayer/client";
 import { parseGen } from "@/lib/format";
 import { error as toastError } from "@/lib/utils/toast";
 import { errorMessage } from "@/lib/utils/errorMessage";
@@ -26,7 +27,8 @@ function toDatetimeLocalMin(date: Date): string {
 export default function CreateBountyPage() {
   const router = useRouter();
   const contract = useProofOfWorkContract();
-  const { isConnected, address } = useWallet();
+  const { isConnected, address, isOnCorrectNetwork } = useWallet();
+  const [isSwitchingNetwork, setIsSwitchingNetwork] = useState(false);
   const { mutateAsync: createBounty, isPending } = useCreateBounty();
 
   const [title, setTitle] = useState("");
@@ -103,6 +105,20 @@ export default function CreateBountyPage() {
     if (!isConnected || !address) {
       toastError("Connect your wallet to post a bounty.");
       return;
+    }
+
+    if (!isOnCorrectNetwork) {
+      try {
+        setIsSwitchingNetwork(true);
+        await switchToGenLayerNetwork();
+      } catch (err: unknown) {
+        const message = errorMessage(err);
+        setSubmitError(message);
+        toastError(message);
+        return;
+      } finally {
+        setIsSwitchingNetwork(false);
+      }
     }
 
     const input = validate();
@@ -242,6 +258,34 @@ export default function CreateBountyPage() {
               </p>
             )}
 
+            {isConnected && !isOnCorrectNetwork && (
+              <div className="space-y-2">
+                <p className="text-sm text-destructive">
+                  Your wallet is on the wrong network. Switch to GenLayer Studio
+                  (chain ID 61999) or Rabby will report “Gas balance is not
+                  enough” even when you have GEN.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  disabled={isSwitchingNetwork || isPending}
+                  onClick={async () => {
+                    try {
+                      setIsSwitchingNetwork(true);
+                      await switchToGenLayerNetwork();
+                    } catch (err: unknown) {
+                      setSubmitError(errorMessage(err));
+                    } finally {
+                      setIsSwitchingNetwork(false);
+                    }
+                  }}
+                >
+                  {isSwitchingNetwork ? "Switching…" : "Switch to GenLayer Studio"}
+                </Button>
+              </div>
+            )}
+
             {submitError && (
               <p className="text-sm text-destructive">{submitError}</p>
             )}
@@ -250,7 +294,7 @@ export default function CreateBountyPage() {
               type="submit"
               variant="gradient"
               className="w-full"
-              disabled={isPending || !isConnected}
+              disabled={isPending || isSwitchingNetwork || !isConnected}
             >
               {isPending ? (
                 <>

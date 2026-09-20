@@ -4,7 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { User, LogOut, AlertCircle, ExternalLink } from "lucide-react";
 import { useWallet } from "@/lib/genlayer/wallet";
+import { switchToGenLayerNetwork } from "@/lib/genlayer/client";
 import { error, userRejected } from "@/lib/utils/toast";
+import { errorMessage } from "@/lib/utils/errorMessage";
 import { AddressDisplay } from "./AddressDisplay";
 import { Button } from "./ui/button";
 import {
@@ -35,6 +37,7 @@ export function WalletButton() {
   const [connectionError, setConnectionError] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
+  const [isSwitchingNetwork, setIsSwitchingNetwork] = useState(false);
 
   const handleConnect = async () => {
     if (!isMetaMaskInstalled) {
@@ -103,8 +106,8 @@ export function WalletButton() {
               Connect to Proof of Work
             </DialogTitle>
             <DialogDescription>
-              Your wallet is how you sign in. No username or password. MetaMask
-              is a free browser wallet — a login that can also send test GEN.
+              Your wallet is how you sign in. No username or password. Rabby or
+              MetaMask work — a login that can also send test GEN.
             </DialogDescription>
           </DialogHeader>
 
@@ -187,7 +190,7 @@ export function WalletButton() {
       <DialogContent className="brand-card border-2">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold">Wallet</DialogTitle>
-          <DialogDescription>Your connected MetaMask account</DialogDescription>
+          <DialogDescription>Your connected wallet account</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-4">
@@ -222,9 +225,33 @@ export function WalletButton() {
               <AlertCircle className="h-4 w-4 text-yellow-500" />
               <AlertTitle>Wrong network</AlertTitle>
               <AlertDescription>
-                Reconnect to switch to the GenLayer Studio testnet.
+                Switch to GenLayer Studio (chain ID 61999). Payable bounty
+                posts fail in Rabby with “Gas balance is not enough” if the
+                wallet is still on Ethereum or another chain.
               </AlertDescription>
             </Alert>
+          )}
+
+          {!isOnCorrectNetwork && (
+            <Button
+              type="button"
+              variant="gradient"
+              className="w-full"
+              disabled={isSwitchingNetwork || isLoading}
+              onClick={async () => {
+                try {
+                  setIsSwitchingNetwork(true);
+                  setConnectionError("");
+                  await switchToGenLayerNetwork();
+                } catch (err: unknown) {
+                  setConnectionError(errorMessage(err));
+                } finally {
+                  setIsSwitchingNetwork(false);
+                }
+              }}
+            >
+              {isSwitchingNetwork ? "Switching…" : "Switch to GenLayer Studio"}
+            </Button>
           )}
 
           {connectionError && (

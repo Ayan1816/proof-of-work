@@ -13,6 +13,12 @@ import {
   feePresetToTransactionFees,
   type FeePresetEstimate,
 } from "../genlayer/fees";
+import {
+  ensureGenLayerNetwork,
+  getEthereumProvider,
+} from "../genlayer/client";
+import { formatGen } from "../format";
+import { errorMessage } from "../utils/errorMessage";
 
 const FAILED_TX_STATUSES = new Set([
   "UNDETERMINED",
@@ -251,9 +257,8 @@ function assertSuccessfulReceipt(receipt: any): void {
   }
 }
 
-function buildClient(address?: string | null, studioUrl?: string) {
-  const rpcUrl = studioUrl || "https://studio.genlayer.com/api";
-  const chain = {
+function cloneStudioChain(rpcUrl: string) {
+  return {
     ...studionet,
     rpcUrls: {
       default: {
@@ -261,10 +266,29 @@ function buildClient(address?: string | null, studioUrl?: string) {
       },
     },
   };
+}
+
+function buildClient(
+  address?: string | null,
+  studioUrl?: string,
+  forWrite = false
+) {
+  const rpcUrl = studioUrl || "https://studio.genlayer.com/api";
+  const chain = cloneStudioChain(rpcUrl);
   const config: any = { chain, endpoint: rpcUrl };
   if (address) config.account = address as `0x${string}`;
-  // Do not attach window.ethereum for reads. gen_call must hit the JSON-RPC
-  // endpoint (or our same-origin proxy), not MetaMask.
+  // Reads must NOT use the wallet provider: gen_call has to hit the JSON-RPC
+  // proxy, not Rabby/MetaMask. Writes MUST pass the injected provider so
+  // eth_sendTransaction is signed by the wallet the user actually connected.
+  if (forWrite) {
+    const provider = getEthereumProvider();
+    if (!provider) {
+      throw new Error(
+        "Connect a browser wallet (Rabby or MetaMask) to send transactions."
+      );
+    }
+    config.provider = provider;
+  }
   return createClient(config);
 }
 
@@ -272,6 +296,7 @@ class ProofOfWork {
   private contractAddress: `0x${string}`;
   private client: any;
   private studioUrl?: string;
+  private account: string | null;
 
   constructor(
     contractAddress: string,
@@ -280,11 +305,13 @@ class ProofOfWork {
   ) {
     this.contractAddress = contractAddress as `0x${string}`;
     this.studioUrl = studioUrl;
-    this.client = buildClient(address, studioUrl);
+    this.account = address || null;
+    this.client = buildClient(address, studioUrl, false);
   }
 
   updateAccount(address: string): void {
-    this.client = buildClient(address, this.studioUrl);
+    this.account = address;
+    this.client = buildClient(address, this.studioUrl, false);
   }
 
   private async read(functionName: string, args: unknown[] = []) {
@@ -343,6 +370,14 @@ class ProofOfWork {
     return BigInt(asText(raw || 0) || "0");
   }
 
+  async getBalance(address: string): Promise<bigint> {
+    if (!address || typeof this.client.getBalance !== "function") return 0n;
+    const raw = await this.client.getBalance({
+      address: address as `0x${string}`,
+    });
+    return BigInt(raw ?? 0);
+  }
+
   private async write(
     functionName: string,
     args: unknown[],
@@ -350,20 +385,27 @@ class ProofOfWork {
     retries = 80,
     interval = 5000
   ): Promise<TransactionReceipt> {
+    await ensureGenLayerNetwork();
+    const writeClient: any = buildClient(this.account, this.studioUrl, true);
     const feePreset: FeePresetEstimate | undefined = await estimateWriteFeePreset(
-      this.client,
+      writeClient,
       { address: this.contractAddress, functionName, args, value },
       "standard"
     );
     const fees = feePresetToTransactionFees(feePreset);
-    const txHash = await this.client.writeContract({
-      address: this.contractAddress,
-      functionName,
-      args,
-      value,
-      ...(fees ? { fees } : {}),
-    });
-    const receipt = await this.client.waitForTransactionReceipt({
+    let txHash: string;
+    try {
+      txHash = await writeClient.writeContract({
+        address: this.contractAddress,
+        functionName,
+        args,
+        value,
+        ...(fees ? { fees } : {}),
+      });
+    } catch (err) {
+      throw new Error(errorMessage(err, "Wallet rejected or could not send the transaction."));
+    }
+    const receipt = await writeClient.waitForTransactionReceipt({
       hash: txHash,
       status: TransactionStatus.ACCEPTED,
       retries,
@@ -377,7 +419,28 @@ class ProofOfWork {
     };
   }
 
-  createBounty(title: string, spec: string, rewardWei: bigint, deadline: number) {
+  async createBounty(
+    title: string,
+    spec: string,
+    rewardWei: bigint,
+    deadline: number
+  ) {
+    if (this.account) {
+      try {
+        const balance = await this.getBalance(this.account);
+        if (balance < rewardWei) {
+          throw new Error(
+            `Not enough GEN to lock this reward. Wallet has ${formatGen(balance)} GEN; bounty locks ${formatGen(rewardWei)} GEN. Keep a little extra for network fees.`
+          );
+        }
+      } catch (err) {
+        if (err instanceof Error && err.message.startsWith("Not enough GEN")) {
+          throw err;
+        }
+        // If balance lookup fails, still attempt the write — the wallet will
+        // surface a real funding error after we have switched networks.
+      }
+    }
     return this.write(
       "create_bounty",
       [title, spec, rewardWei, deadline],

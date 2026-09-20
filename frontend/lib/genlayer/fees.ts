@@ -66,30 +66,38 @@ export async function estimateWriteFeePreset(
     return undefined;
   }
 
-  const options = PRESET_OPTIONS[level];
-  const initialEstimate = await client.estimateTransactionFees(options);
-  let estimate = initialEstimate;
+  try {
+    const options = PRESET_OPTIONS[level];
+    const initialEstimate = await client.estimateTransactionFees(options);
+    let estimate = initialEstimate;
 
-  if (
-    typeof client.simulateWriteContract === "function" &&
-    typeof client.estimateTransactionFeesFromSimulation === "function"
-  ) {
-    const simulation = await client.simulateWriteContract({
-      ...request,
-      includeReceipt: true,
-      value: request.value ?? 0n,
-      fees: transactionFeesFromEstimate(initialEstimate),
-    });
+    if (
+      typeof client.simulateWriteContract === "function" &&
+      typeof client.estimateTransactionFeesFromSimulation === "function"
+    ) {
+      const simulation = await client.simulateWriteContract({
+        ...request,
+        includeReceipt: true,
+        value: request.value ?? 0n,
+        fees: transactionFeesFromEstimate(initialEstimate),
+      });
 
-    estimate = await client.estimateTransactionFeesFromSimulation({
-      ...options,
-      simulation,
-    });
+      estimate = await client.estimateTransactionFeesFromSimulation({
+        ...options,
+        simulation,
+      });
+    }
+
+    return {
+      level,
+      estimate,
+      observed: estimate?.observed,
+    };
+  } catch (err) {
+    // Never block a user write on a best-effort fee simulation. Studio's
+    // genlayer-js 1.1.8 ignores `fees` anyway; a thrown estimate here was
+    // aborting create_bounty before the wallet prompt.
+    console.warn("Fee estimate skipped:", err);
+    return undefined;
   }
-
-  return {
-    level,
-    estimate,
-    observed: estimate?.observed,
-  };
 }
