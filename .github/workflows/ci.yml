@@ -71,8 +71,11 @@ jobs:
       - name: Install GenLayer CLI
         run: npm install -g genlayer
       - name: Initialize and start Studio
+        env:
+          CI: "true"
+          GENLAYER_NONINTERACTIVE: "1"
         run: |
-          genlayer init --headless --numValidators 3
+          yes | genlayer init --headless --numValidators 3
           genlayer up --headless --numValidators 3
       - name: Wait for Studio RPC
         run: |

@@ -37,6 +37,8 @@ def test_preserved_contract_and_ci_untouched_by_history_feature():
     assert "r.jina.ai" in contract
     assert "@gl.public.write" in contract
     assert "def refund" in contract
+    assert "gl.vm.UserError" in contract
+    assert "raise Exception(" not in contract
     ci = CI.read_text()
     assert "npm ci" in ci
     assert "npm run build" in ci

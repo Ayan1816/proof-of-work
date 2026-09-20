@@ -380,10 +380,10 @@ def _as_u256(value) -> u256:
 
 def _transfer_gen(to_hex: str, amount: int) -> None:
     if amount <= 0:
-        raise Exception("Transfer amount must be positive.")
+        raise gl.vm.UserError("Transfer amount must be positive.")
     target = str(to_hex or "").strip()
     if not target:
-        raise Exception("Transfer target is required.")
+        raise gl.vm.UserError("Transfer target is required.")
     gl.get_contract_at(Address(target)).emit_transfer(value=u256(amount))
 
 
@@ -391,9 +391,9 @@ def _require_http_url(url: str) -> str:
     text = str(url or "").strip()
     lowered = text.lower()
     if not (lowered.startswith("https://") or lowered.startswith("http://")):
-        raise Exception("Proof link must be an http or https URL.")
+        raise gl.vm.UserError("Proof link must be an http or https URL.")
     if len(text) < MIN_PROOF_LINK_LEN:
-        raise Exception("Proof link is too short.")
+        raise gl.vm.UserError("Proof link is too short.")
     return text
 
 
@@ -483,15 +483,13 @@ def _corroboration_url(url: str) -> str:
     return ""
 
 
-def _fetch_proof_text(url: str) -> str:
-    fetch_url = _normalize_proof_url(url)
-    resp = gl.nondet.web.get(fetch_url)
+def _decode_proof_response(resp) -> str:
     status = int(getattr(resp, "status", 200) or 200)
     text = _decode_body(getattr(resp, "body", b""))
     if status >= 400:
-        raise Exception("Failed to fetch proof content from the proof link.")
+        raise gl.vm.UserError("Failed to fetch proof content from the proof link.")
     if len(text.strip()) < MIN_CONTENT_LEN:
-        raise Exception("Fetched proof content is too short to judge.")
+        raise gl.vm.UserError("Fetched proof content is too short to judge.")
     if len(text) > MAX_PROOF_CHARS:
         return text[:MAX_PROOF_CHARS]
     return text
@@ -505,7 +503,9 @@ def _fetch_corroboration(proof_link: str, primary: str) -> tuple:
     if not second_url:
         return "", "", "No independent corroboration URL could be derived."
     try:
-        secondary = _fetch_proof_text(second_url)
+        secondary = _decode_proof_response(
+            gl.nondet.web.get(_normalize_proof_url(second_url))
+        )
     except Exception:
         return (
             second_url,
@@ -612,7 +612,9 @@ def _compose_work(
 
 
 def _prepared_work(proof_link: str, description: str) -> str:
-    fetched = _fetch_proof_text(proof_link)
+    fetched = _decode_proof_response(
+        gl.nondet.web.get(_normalize_proof_url(proof_link))
+    )
     second_url, second_text, note = _fetch_corroboration(proof_link, fetched)
     second_hash = _hash_text(second_text) if second_text else ""
     return _compose_work(
@@ -712,7 +714,7 @@ def _run_independent_judgment(spec: str, content: str) -> dict:
         )
         parsed = _try_parse_verdict(raw)
         if parsed is None:
-            raise Exception("Failed to parse AI verdict. Please try again.")
+            raise gl.vm.UserError("Failed to parse AI verdict. Please try again.")
         return parsed
 
     def validator_fn(leader_result) -> bool:
@@ -741,10 +743,10 @@ def _run_independent_judgment(spec: str, content: str) -> dict:
             return False
         return _same_judgment(leader, independent)
 
-    verdict = glvm.run_nondet_unsafe.lazy(leader_fn, validator_fn).get()
+    verdict = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
     parsed = _try_parse_verdict(verdict)
     if parsed is None:
-        raise Exception("Failed to parse AI verdict. Please try again.")
+        raise gl.vm.UserError("Failed to parse AI verdict. Please try again.")
     return parsed
 
 
@@ -759,7 +761,7 @@ def _run_independent_judgment_from_url(spec: str, proof_link: str, description: 
         )
         parsed = _try_parse_verdict(raw)
         if parsed is None:
-            raise Exception("Failed to parse AI verdict. Please try again.")
+            raise gl.vm.UserError("Failed to parse AI verdict. Please try again.")
         return parsed
 
     def validator_fn(leader_result) -> bool:
@@ -783,10 +785,10 @@ def _run_independent_judgment_from_url(spec: str, proof_link: str, description: 
             return False
         return _same_judgment(leader, independent)
 
-    verdict = glvm.run_nondet_unsafe.lazy(leader_fn, validator_fn).get()
+    verdict = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
     parsed = _try_parse_verdict(verdict)
     if parsed is None:
-        raise Exception("Failed to parse AI verdict. Please try again.")
+        raise gl.vm.UserError("Failed to parse AI verdict. Please try again.")
     return parsed
 
 
@@ -815,32 +817,32 @@ class ProofOfWork(gl.Contract):
     def _bounty_key(self, bounty_id: str) -> str:
         key = str(bounty_id).strip()
         if not key or key not in self.bounties:
-            raise Exception("Bounty not found.")
+            raise gl.vm.UserError("Bounty not found.")
         return key
 
     def _lock_escrow(self, reward_int: int) -> None:
         if reward_int <= 0:
-            raise Exception("Reward must be greater than zero.")
+            raise gl.vm.UserError("Reward must be greater than zero.")
         attached = _attached_value()
         if attached != reward_int:
-            raise Exception("Sent value must equal the bounty reward.")
+            raise gl.vm.UserError("Sent value must equal the bounty reward.")
         self.total_escrowed = _as_u256(int(self.total_escrowed) + reward_int)
 
     def _release_escrow(self, bounty: Bounty) -> None:
         """Pay the submitter from escrow. Only valid after an Approved verdict."""
         if bounty.status != STATUS_APPROVED:
-            raise Exception("Escrow can only be released after an Approved verdict.")
+            raise gl.vm.UserError("Escrow can only be released after an Approved verdict.")
         if not bounty.escrow_locked:
-            raise Exception("Bounty reward is not locked in escrow.")
+            raise gl.vm.UserError("Bounty reward is not locked in escrow.")
         amount = int(bounty.reward)
         if amount <= 0:
-            raise Exception("Nothing to release.")
+            raise gl.vm.UserError("Nothing to release.")
         payee = str(bounty.submitter or "").strip()
         if not payee:
-            raise Exception("No submitter to pay.")
+            raise gl.vm.UserError("No submitter to pay.")
         locked = int(self.total_escrowed)
         if locked < amount:
-            raise Exception("Escrow accounting mismatch.")
+            raise gl.vm.UserError("Escrow accounting mismatch.")
         bounty.escrow_locked = False
         bounty.status = STATUS_PAID
         self.bounties[str(int(bounty.id))] = bounty
@@ -861,20 +863,20 @@ class ProofOfWork(gl.Contract):
     def _refund_escrow(self, bounty: Bounty) -> None:
         """Return locked GEN to the creator for rejected, expired, or spent appeals."""
         if not bounty.escrow_locked:
-            raise Exception("Bounty reward is not locked in escrow.")
+            raise gl.vm.UserError("Bounty reward is not locked in escrow.")
         if not self._refund_allowed(bounty):
-            raise Exception(
+            raise gl.vm.UserError(
                 "Refund is only allowed for rejected, expired, or appeal-exhausted bounties."
             )
         amount = int(bounty.reward)
         if amount <= 0:
-            raise Exception("Nothing to refund.")
+            raise gl.vm.UserError("Nothing to refund.")
         payee = str(bounty.creator or "").strip()
         if not payee:
-            raise Exception("No creator to refund.")
+            raise gl.vm.UserError("No creator to refund.")
         locked = int(self.total_escrowed)
         if locked < amount:
-            raise Exception("Escrow accounting mismatch.")
+            raise gl.vm.UserError("Escrow accounting mismatch.")
         bounty.escrow_locked = False
         bounty.status = STATUS_REFUNDED
         self.bounties[str(int(bounty.id))] = bounty
@@ -908,7 +910,7 @@ class ProofOfWork(gl.Contract):
     def _submission_key(self, submission_id: str) -> str:
         key = str(submission_id).strip()
         if not key or key not in self.submissions:
-            raise Exception("Submission not found.")
+            raise gl.vm.UserError("Submission not found.")
         return key
 
     @gl.public.write.payable
@@ -922,13 +924,13 @@ class ProofOfWork(gl.Contract):
         clean_title = title.strip()
         clean_spec = spec.strip()
         if len(clean_title) < MIN_TITLE_LEN:
-            raise Exception("Title too short.")
+            raise gl.vm.UserError("Title too short.")
         if len(clean_spec) < MIN_CONTENT_LEN:
-            raise Exception("Spec too short. Please provide a complete bounty spec.")
+            raise gl.vm.UserError("Spec too short. Please provide a complete bounty spec.")
         reward_int = int(reward)
         deadline_int = int(deadline)
         if deadline_int <= _now_ts():
-            raise Exception("Deadline must be in the future.")
+            raise gl.vm.UserError("Deadline must be in the future.")
 
         self._lock_escrow(reward_int)
 
@@ -967,9 +969,9 @@ class ProofOfWork(gl.Contract):
         Rejected is a valid verdict — it does not revert.
         """
         if len(spec.strip()) < MIN_CONTENT_LEN:
-            raise Exception("Spec too short. Please provide a complete bounty spec.")
+            raise gl.vm.UserError("Spec too short. Please provide a complete bounty spec.")
         if len(content.strip()) < MIN_CONTENT_LEN:
-            raise Exception("Work too short. Please provide more details.")
+            raise gl.vm.UserError("Work too short. Please provide more details.")
 
         parsed = _run_independent_judgment(spec, content)
         return json.dumps(
@@ -986,18 +988,18 @@ class ProofOfWork(gl.Contract):
         key = self._bounty_key(bounty_id)
         bounty = self.bounties[key]
         if bounty.status != STATUS_OPEN:
-            raise Exception("Bounty is not open for submissions.")
+            raise gl.vm.UserError("Bounty is not open for submissions.")
         if _now_ts() > int(bounty.deadline):
-            raise Exception("Bounty deadline has passed.")
+            raise gl.vm.UserError("Bounty deadline has passed.")
         sender = _sender_hex()
         if _norm_addr(sender) == _norm_addr(bounty.creator):
-            raise Exception("Bounty creator cannot submit work on their own bounty.")
+            raise gl.vm.UserError("Bounty creator cannot submit work on their own bounty.")
         if int(bounty.submission_id) != 0:
-            raise Exception("This bounty already has a submission.")
+            raise gl.vm.UserError("This bounty already has a submission.")
         clean_link = _require_http_url(proof_link)
         clean_desc = description.strip()
         if len(clean_desc) < MIN_CONTENT_LEN:
-            raise Exception("Description too short. Please provide more details.")
+            raise gl.vm.UserError("Description too short. Please provide more details.")
 
         sub_id = int(self.next_submission_id) + 1
         self.next_submission_id = _as_u256(sub_id)
@@ -1029,10 +1031,10 @@ class ProofOfWork(gl.Contract):
         key = self._bounty_key(bounty_id)
         bounty = self.bounties[key]
         if bounty.status not in (STATUS_IN_REVIEW, STATUS_APPEALED):
-            raise Exception("Bounty is not ready for judgment.")
+            raise gl.vm.UserError("Bounty is not ready for judgment.")
         sub_id = int(bounty.submission_id)
         if sub_id == 0:
-            raise Exception("No submission to judge.")
+            raise gl.vm.UserError("No submission to judge.")
         sub = self.submissions[str(sub_id)]
         spec = str(bounty.spec)
         proof_link = str(sub.proof_link)
@@ -1089,7 +1091,7 @@ class ProofOfWork(gl.Contract):
         sender = _norm_addr(_sender_hex())
         creator = _norm_addr(bounty.creator)
         if sender != creator:
-            raise Exception("Only the bounty creator can refund escrow.")
+            raise gl.vm.UserError("Only the bounty creator can refund escrow.")
         payee = str(bounty.creator)
         self._refund_escrow(bounty)
         return json.dumps(
@@ -1110,11 +1112,11 @@ class ProofOfWork(gl.Contract):
         creator = _norm_addr(bounty.creator)
         submitter = _norm_addr(bounty.submitter)
         if not submitter or sender not in (creator, submitter):
-            raise Exception("Only the bounty creator or submitter can appeal.")
+            raise gl.vm.UserError("Only the bounty creator or submitter can appeal.")
         if bounty.status not in (STATUS_APPROVED, STATUS_REJECTED):
-            raise Exception("Only an Approved or Rejected verdict can be appealed.")
+            raise gl.vm.UserError("Only an Approved or Rejected verdict can be appealed.")
         if int(bounty.appeal_count) >= MAX_APPEALS:
-            raise Exception("Appeal limit reached.")
+            raise gl.vm.UserError("Appeal limit reached.")
         bounty.appeal_count = _as_u256(int(bounty.appeal_count) + 1)
         bounty.status = STATUS_APPEALED
         self.bounties[key] = bounty
