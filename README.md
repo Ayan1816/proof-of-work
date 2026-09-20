@@ -13,9 +13,10 @@ Proof of Work is an AI-verified bounty and grant platform on GenLayer. Anyone ca
 - **Direct mode tests** — fast, in-memory unit tests with LLM mocking (~ms per test)
 - **Integration tests** — full end-to-end tests against GenLayer Studio
 - **Contract linting** — static analysis to catch common contract issues before deployment
-- **CI pipeline** — GitHub Actions workflow for linting, direct tests, and Studio-backed integration tests
+- **CI pipeline** — GitHub Actions workflow for contract lint, direct tests, frontend `npm ci` + `npm run build`, and Studio-backed integration tests
 - A production-ready Next.js 15 frontend with TypeScript, TanStack Query, and Radix UI
 - Configuration file template and deployment scripts
+- [Durable on-chain evidence](docs/EVIDENCE.md) — live appeal-to-payout transaction hashes for contract `0x6E64B75d36E72c0553A14a595940E793BCd17765`
 
 ## Requirements
 - Python >= 3.12
@@ -35,9 +36,10 @@ tests/
     fixtures.py
 frontend/               # Next.js 15 app (TypeScript, TanStack Query, Radix UI)
 deploy/                 # TypeScript deployment scripts
+docs/EVIDENCE.md        # Live Studio tx hashes for appeal → payout
 gltest.config.yaml      # Test runner network configuration
 pyproject.toml          # Python/pytest configuration
-.github/workflows/      # CI pipeline
+.github/workflows/      # CI pipeline (contracts + frontend build)
 ```
 
 ## Quick Start
@@ -115,10 +117,12 @@ The app will be available at http://localhost:3000/.
 
 1. **Post a bounty**: A creator locks a reward in escrow with a spec and a deadline.
 2. **Submit work**: A contributor shares a proof link (for example a GitHub URL) and a short description.
-3. **Independent judgment**: The leader AI fetches the proof and compares it to the spec. Validators independently re-read the same work and must agree on Approved or Rejected.
+3. **Independent judgment**: The leader AI fetches the proof **and a second independent source** (Wikipedia REST, GitHub Contents API, or Jina Reader), then compares both to the spec. Validators independently re-read the work. Consensus requires the same Approved/Rejected bit **and** stemmed-token / synonym overlap in the reasoning — not a rubber-stamp.
 4. **Payout, refund, or appeal**: An Approved verdict can release escrow to the contributor. If the bounty is rejected, expired, or appeal-exhausted, the creator can refund the locked GEN. Either party can appeal a contested verdict.
 
 A non-empty reasoning string is **not** enough. Validators must independently evaluate whether the submitted work matches the spec.
+
+Live Studio evidence (contract `0x6E64B75d36E72c0553A14a595940E793BCd17765`): see [docs/EVIDENCE.md](docs/EVIDENCE.md).
 
 ## Testing Strategy
 
@@ -126,6 +130,7 @@ A non-empty reasoning string is **not** enough. Validators must independently ev
 |-----------|---------|-------|-----------------|
 | **Lint** | `genvm-lint check contracts/proof_of_work.py` | ~250ms | No |
 | **Direct** | `pytest tests/direct/ -v` | ~ms/test | No |
+| **Frontend** | `npm ci && npm run lint && npm run build` | ~1–2 min | No |
 | **Integration** | `gltest tests/integration/ -v -s` | ~min/test | Yes |
 
 **Recommended workflow:**

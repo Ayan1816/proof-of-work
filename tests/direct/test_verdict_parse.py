@@ -8,16 +8,23 @@ def _load_helpers():
     module = ast.parse(contract.read_text())
     keep = {
         "MIN_REASONING_LEN",
+        "MIN_TOKEN_JACCARD",
+        "MIN_CORROBORATION_OVERLAP",
+        "JINA_READER_PREFIX",
         "PLACEHOLDER_REASONING",
         "_TOKEN_STOPWORDS",
+        "_SYNONYM_STEMS",
         "_INJECTION_MARKERS",
         "_as_bool",
         "_reasoning_is_substantive",
         "_stem_token",
         "_significant_tokens",
+        "_token_jaccard",
         "_try_parse_verdict",
         "_same_judgment",
         "_normalize_proof_url",
+        "_github_contents_api_url",
+        "_corroboration_url",
         "_hash_text",
         "_sanitize_untrusted",
         "_compose_work",
@@ -141,6 +148,45 @@ def test_generic_independent_reasoning_rejected():
     assert H["_same_judgment"](leader, independent) is False
 
 
+def test_stemmed_paraphrase_is_same_judgment():
+    """Inflected forms collapse to the same stem (installing/install, tests/test)."""
+    leader = {
+        "approved": True,
+        "reasoning": "The README documents installing pytest for local tests.",
+    }
+    independent = {
+        "approved": True,
+        "reasoning": "Install and test commands are present in the readme.",
+    }
+    assert H["_same_judgment"](leader, independent) is True
+    assert "install" in H["_significant_tokens"](leader["reasoning"])
+    assert "test" in H["_significant_tokens"](independent["reasoning"])
+
+
+def test_synonym_stems_count_as_semantic_overlap():
+    leader = {
+        "approved": True,
+        "reasoning": "The documentation covers pytest and the install steps.",
+    }
+    independent = {
+        "approved": True,
+        "reasoning": "README includes test commands and setup instructions.",
+    }
+    assert H["_same_judgment"](leader, independent) is True
+
+
+def test_unrelated_stems_do_not_agree():
+    leader = {
+        "approved": True,
+        "reasoning": "The README lists pip install and pytest, matching the spec.",
+    }
+    independent = {
+        "approved": True,
+        "reasoning": "The moon poem is lyrical and has vivid lunar imagery.",
+    }
+    assert H["_same_judgment"](leader, independent) is False
+
+
 def test_evidence_hash_is_stable():
     body = "README: pip install -r requirements.txt, then pytest tests/direct/ -v."
     digest = H["_hash_text"](body)
@@ -175,6 +221,45 @@ def test_compose_work_includes_hash_timestamp_and_evidence_envelope():
     assert '<evidence sha256="abc123" fetched_at="1700000000">' in composed
     assert "[redacted-untrusted-instruction]" in composed
     assert "UNTRUSTED FETCHED EVIDENCE" in composed
+
+
+def test_compose_work_includes_independent_corroboration_envelope():
+    composed = H["_compose_work"](
+        "https://example.com/proof.md",
+        "Submitter notes about the README.",
+        "Primary page body with pip install steps.",
+        "abc123",
+        "1700000000",
+        "https://r.jina.ai/https://example.com/proof.md",
+        "Independent extract of pip install and pytest docs.",
+        "def456",
+        "Independent source stemmed-token overlap=40%.",
+    )
+    assert "Independent source: https://r.jina.ai/https://example.com/proof.md" in composed
+    assert "Independent sha256: def456" in composed
+    assert "<evidence-secondary" in composed
+    assert "UNTRUSTED INDEPENDENT EVIDENCE" in composed
+    assert "pip install and pytest docs." in composed
+
+
+def test_corroboration_url_uses_wikipedia_rest_and_jina():
+    wiki = "https://en.wikipedia.org/wiki/Artificial_intelligence"
+    assert H["_corroboration_url"](wiki) == (
+        "https://en.wikipedia.org/api/rest_v1/page/summary/Artificial_intelligence"
+    )
+    page = "https://example.com/proof.md"
+    assert H["_corroboration_url"](page) == "https://r.jina.ai/" + page
+    assert H["_corroboration_url"]("https://r.jina.ai/" + page) == ""
+
+
+def test_github_blob_corroborates_via_contents_api():
+    blob = "https://github.com/acme/app/blob/main/README.md"
+    assert H["_github_contents_api_url"](blob) == (
+        "https://api.github.com/repos/acme/app/contents/README.md?ref=main"
+    )
+    assert H["_corroboration_url"](blob) == (
+        "https://api.github.com/repos/acme/app/contents/README.md?ref=main"
+    )
 
 
 def test_github_blob_url_normalizes_to_raw():

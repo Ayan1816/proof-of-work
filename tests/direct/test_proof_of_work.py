@@ -527,3 +527,26 @@ def test_judge_submission_validator_re_fetches_proof(
     direct_vm.clear_mocks()
     _mock_proof(direct_vm, approved=False, reasoning=REJECT_REASON)
     assert direct_vm.run_validator() is False
+
+
+def test_judge_submission_fetches_second_independent_source(
+    direct_vm, direct_deploy, direct_alice, direct_bob
+):
+    """Leader and validators fetch the submitter link and a Jina corroboration URL."""
+    contract = direct_deploy(CONTRACT_PATH)
+    _open_bounty(contract, direct_vm, direct_alice)
+    direct_vm.sender = direct_bob
+    contract.submit_work("1", PROOF_LINK, PROOF_DESC)
+
+    payload = WORK.encode("utf-8")
+    direct_vm.mock_web(r".*example\.com.*", {"status": 200, "body": payload})
+    direct_vm.mock_web(r".*r\.jina\.ai.*", {"status": 200, "body": payload})
+    direct_vm.mock_llm(r".*", _verdict(True, APPROVE_REASON))
+    parsed = json.loads(contract.judge_submission("1"))
+    assert parsed["approved"] is True
+
+    hits = getattr(direct_vm, "_web_mocks_hit", None)
+    if hits:
+        blob = " ".join(str(item) for item in hits)
+        assert "example.com" in blob or "jina" in blob.lower()
+        assert len(hits) >= 2

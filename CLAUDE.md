@@ -29,6 +29,7 @@ tests/
   integration/      # Full tests against GenLayer Studio
 frontend/           # Next.js 15 app (TypeScript, TanStack Query, Radix UI)
 deploy/             # TypeScript deployment scripts
+docs/EVIDENCE.md    # Live Studio appeal-to-payout tx hashes
 ```
 
 **Frontend stack**: Next.js 15, React 19, TypeScript, Tailwind CSS, TanStack Query, Wagmi/Viem, MetaMask wallet integration.
@@ -71,7 +72,7 @@ class MyContract(gl.Contract):
 
 **Storage types**: `TreeMap`, `DynArray`, `Array`, `u256`, `i256`, `@allow_storage` for custom classes
 
-**Proof of Work validators**: `contracts/proof_of_work.py` is the single contract source. Validators must independently re-read the submitted work and re-judge it against the spec. Do not accept a leader result just because Approved/Rejected is set and reasoning is non-empty.
+**Proof of Work validators**: `contracts/proof_of_work.py` is the single contract source. Validators must independently re-read the submitted work and re-judge it against the spec. Do not accept a leader result just because Approved/Rejected is set and reasoning is non-empty. `_same_judgment` requires stemmed-token / synonym overlap (Jaccard). Evidence fetch uses the submitter link plus a second independent source (Wikipedia REST, GitHub Contents API, or Jina Reader).
 
 ## Writing Direct Mode Tests
 
