@@ -73,10 +73,43 @@ jobs:
       - name: Initialize and start Studio
         env:
           CI: "true"
-          GENLAYER_NONINTERACTIVE: "1"
+          DEBIAN_FRONTEND: noninteractive
         run: |
-          yes | genlayer init --headless --numValidators 3
-          genlayer up --headless --numValidators 3
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq expect
+          # genlayer init always prompts: confirm reset, LLM checkbox, API key.
+          # --headless only skips the browser. Do NOT run `genlayer up` after
+          # init — init already starts localnet, and a second up prompts
+          # "already running" and hangs CI.
+          timeout 12m expect <<'EOF'
+          set timeout 700
+          log_user 1
+          spawn genlayer init --headless --numValidators 3
+          expect {
+            -re {(?i)continue\?} {
+              send "y\r"
+              exp_continue
+            }
+            -re {(?i)LLM providers} {
+              # Space toggles the first provider (OpenAI), Enter confirms.
+              send -- " \r"
+              exp_continue
+            }
+            -re {(?i)API Key} {
+              if {[info exists env(OPENAI_API_KEY)] && $env(OPENAI_API_KEY) ne ""} {
+                send -- "$env(OPENAI_API_KEY)\r"
+              } else {
+                send -- "sk-ci-placeholder\r"
+              }
+              exp_continue
+            }
+            -re {(?i)successfully} {}
+            eof
+          }
+          catch wait result
+          exit [lindex $result 3]
+          EOF
       - name: Wait for Studio RPC
         run: |
           for i in $(seq 1 60); do
