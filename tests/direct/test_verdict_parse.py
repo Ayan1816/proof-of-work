@@ -7,7 +7,11 @@ def _load_helpers():
     contract = Path(__file__).resolve().parents[2] / "contracts" / "proof_of_work.py"
     module = ast.parse(contract.read_text())
     keep = {
+        "MIN_PROOF_LINK_LEN",
+        "MAX_URL_LEN",
         "MIN_REASONING_LEN",
+        "MAX_REASONING_LEN",
+        "_bound_reasoning",
         "JINA_READER_PREFIX",
         "WIKIPEDIA_SEARCH",
         "PLACEHOLDER_REASONING",
@@ -20,6 +24,8 @@ def _load_helpers():
         "_parse_semantic_equivalent",
         "_encode_query",
         "_spec_claim_query",
+        "_host_is_blocked",
+        "_proof_url_error",
         "_independent_lookup_url",
         "_independent_jina_lookup_url",
         "_normalize_proof_url",
@@ -176,6 +182,14 @@ def test_compose_work_includes_independent_corroboration_envelope():
     assert "<evidence-secondary" in composed
     assert "UNTRUSTED INDEPENDENT EVIDENCE" in composed
     assert "pip install and pytest docs." in composed
+
+
+def test_proof_url_rejects_private_and_credentialed_hosts():
+    assert H["_proof_url_error"]("https://example.com/readme.md") == ""
+    assert "not allowed" in H["_proof_url_error"]("http://127.0.0.1/secret")
+    assert "not allowed" in H["_proof_url_error"]("http://169.254.169.254/latest")
+    assert "credentials" in H["_proof_url_error"]("https://user:pass@example.com/a")
+    assert "whitespace" in H["_proof_url_error"]("https://example.com/a b")
 
 
 def test_independent_lookup_uses_spec_not_submitter_url():

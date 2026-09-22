@@ -96,3 +96,20 @@ the submitter host `evil.example` is not in the URL.
 
 On-chain receipts are not listed in this file. Confirm logic by reading
 the functions above.
+
+## 4. Input and payout guards
+
+These do not replace the semantic check or the spec-only lookup. They stop
+naive URL and escrow mistakes:
+
+| Guard | Function |
+| --- | --- |
+| Reject loopback, link-local, private hosts, and URLs with credentials or whitespace | `_proof_url_error`, `_host_is_blocked`, `_require_http_url` |
+| Pay and refund only to a 20-byte `0x` address | `_require_address` |
+| Cap title, spec, description, reasoning, and reward | `MAX_TITLE_LEN`, `MAX_TEXT_LEN`, `MAX_REASONING_LEN`, `MAX_REWARD` |
+| Strip prompt-injection markers before both LLM prompts | `_sanitize_untrusted` inside `_build_judge_prompt` and `_semantic_equivalence_prompt` |
+| Refuse to judge when the spec-only Wikipedia/Jina lookup returns nothing | `_prepared_work` |
+
+```bash
+rg -n "def _proof_url_error|def _require_address|Independent spec lookup failed" contracts/proof_of_work.py
+```
