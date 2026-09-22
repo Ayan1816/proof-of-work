@@ -28,8 +28,20 @@ def _verdict(approved, reasoning):
     )
 
 
+def _mock_llms(vm, approved, reasoning, equivalent=True):
+    """Judge prompt and semantic-equivalence prompt are different calls."""
+    vm.mock_llm(
+        r"(?i)semantic equivalence",
+        json.dumps({"equivalent": bool(equivalent)}),
+    )
+    vm.mock_llm(
+        r"(?i)independent validator for Proof of Work",
+        _verdict(approved, reasoning),
+    )
+
+
 def _judge(contract, vm, spec, content, approved=True, reasoning="The README covers install and pytest."):
-    vm.mock_llm(r".*", _verdict(approved, reasoning))
+    _mock_llms(vm, approved, reasoning, equivalent=True)
     result = json.loads(contract.judge_work(spec, content))
     vm.clear_mocks()
     return result
@@ -94,17 +106,21 @@ def test_validator_agrees_when_independent_verdict_matches(
     contract = direct_deploy(CONTRACT_PATH)
     direct_vm.sender = direct_alice
 
-    direct_vm.mock_llm(
-        r".*",
-        _verdict(True, "The README lists pip install and pytest, matching the spec."),
+    _mock_llms(
+        direct_vm,
+        True,
+        "The README lists pip install and pytest, matching the spec.",
+        equivalent=True,
     )
     contract.judge_work(SPEC, WORK)
     assert direct_vm._captured_validators, "Validator was not captured"
 
     direct_vm.clear_mocks()
-    direct_vm.mock_llm(
-        r".*",
-        _verdict(True, "Install and test commands are present as requested."),
+    _mock_llms(
+        direct_vm,
+        True,
+        "Install and test commands are present as requested.",
+        equivalent=True,
     )
     assert direct_vm.run_validator() is True
 
@@ -114,17 +130,20 @@ def test_validator_rejects_approval_disagreement(direct_vm, direct_deploy, direc
     contract = direct_deploy(CONTRACT_PATH)
     direct_vm.sender = direct_alice
 
-    direct_vm.mock_llm(
-        r".*",
-        _verdict(True, "The README lists pip install and pytest, matching the spec."),
+    _mock_llms(
+        direct_vm,
+        True,
+        "The README lists pip install and pytest, matching the spec.",
     )
     contract.judge_work(SPEC, WORK)
     assert direct_vm._captured_validators, "Validator was not captured"
 
     direct_vm.clear_mocks()
-    direct_vm.mock_llm(
-        r".*",
-        _verdict(False, "The write-up never mentions install or test commands."),
+    _mock_llms(
+        direct_vm,
+        False,
+        "The write-up never mentions install or test commands.",
+        equivalent=False,
     )
     assert direct_vm.run_validator() is False
 
@@ -133,14 +152,15 @@ def test_validator_rejects_placeholder_reasoning(direct_vm, direct_deploy, direc
     contract = direct_deploy(CONTRACT_PATH)
     direct_vm.sender = direct_alice
 
-    direct_vm.mock_llm(
-        r".*",
-        _verdict(True, "The README lists pip install and pytest, matching the spec."),
+    _mock_llms(
+        direct_vm,
+        True,
+        "The README lists pip install and pytest, matching the spec.",
     )
     contract.judge_work(SPEC, WORK)
 
     direct_vm.clear_mocks()
-    direct_vm.mock_llm(r".*", _verdict(True, "No feedback"))
+    _mock_llms(direct_vm, True, "No feedback", equivalent=False)
     assert direct_vm.run_validator() is False
 
 
@@ -231,10 +251,10 @@ def _open_bounty(contract, vm, creator):
     return parsed
 
 
-def _mock_proof(vm, body=WORK, approved=True, reasoning=APPROVE_REASON):
+def _mock_proof(vm, body=WORK, approved=True, reasoning=APPROVE_REASON, equivalent=True):
     payload = body.encode("utf-8") if isinstance(body, str) else body
     vm.mock_web(r".*", {"status": 200, "body": payload})
-    vm.mock_llm(r".*", _verdict(approved, reasoning))
+    _mock_llms(vm, approved, reasoning, equivalent=equivalent)
 
 
 def test_missing_bounty_write_methods_revert(direct_vm, direct_deploy, direct_alice):
@@ -532,17 +552,16 @@ def test_judge_submission_validator_re_fetches_proof(
 def test_judge_submission_fetches_second_independent_source(
     direct_vm, direct_deploy, direct_alice, direct_bob
 ):
-    """Leader and validators fetch the submitter link and a Jina corroboration URL."""
+    """Leader and validators fetch the proof URL and a spec-only Wikipedia lookup."""
     contract = direct_deploy(CONTRACT_PATH)
     _open_bounty(contract, direct_vm, direct_alice)
     direct_vm.sender = direct_bob
     contract.submit_work("1", PROOF_LINK, PROOF_DESC)
 
     payload = WORK.encode("utf-8")
-    # One catch-all mock covers the submitter URL and the Jina corroboration
-    # fetch. Direct-mode _web_mocks_hit stores mock indexes, not URLs.
+    # Catch-all covers the submitter URL and the spec-derived Wikipedia/Jina URL.
     direct_vm.mock_web(r".*", {"status": 200, "body": payload})
-    direct_vm.mock_llm(r".*", _verdict(True, APPROVE_REASON))
+    _mock_llms(direct_vm, True, APPROVE_REASON, equivalent=True)
     parsed = json.loads(contract.judge_submission("1"))
     assert parsed["approved"] is True
     hits = getattr(direct_vm, "_web_mocks_hit", None)

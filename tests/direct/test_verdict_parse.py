@@ -8,23 +8,21 @@ def _load_helpers():
     module = ast.parse(contract.read_text())
     keep = {
         "MIN_REASONING_LEN",
-        "MIN_TOKEN_JACCARD",
-        "MIN_CORROBORATION_OVERLAP",
         "JINA_READER_PREFIX",
+        "WIKIPEDIA_SEARCH",
         "PLACEHOLDER_REASONING",
-        "_TOKEN_STOPWORDS",
-        "_SYNONYM_STEMS",
+        "_GENERIC_REASONING",
         "_INJECTION_MARKERS",
         "_as_bool",
         "_reasoning_is_substantive",
-        "_stem_token",
-        "_significant_tokens",
-        "_token_jaccard",
         "_try_parse_verdict",
-        "_same_judgment",
+        "_semantic_equivalence_prompt",
+        "_parse_semantic_equivalent",
+        "_encode_query",
+        "_spec_claim_query",
+        "_independent_lookup_url",
+        "_independent_jina_lookup_url",
         "_normalize_proof_url",
-        "_github_contents_api_url",
-        "_corroboration_url",
         "_hash_text",
         "_sanitize_untrusted",
         "_compose_work",
@@ -38,7 +36,7 @@ def _load_helpers():
         elif isinstance(node, ast.FunctionDef) and node.name in keep:
             body.append(node)
         elif isinstance(node, ast.Import):
-            if any(alias.name == "hashlib" for alias in node.names):
+            if any(alias.name in ("hashlib", "json") for alias in node.names):
                 body.append(node)
     ns: dict = {}
     exec(compile(ast.Module(body=body, type_ignores=[]), str(contract), "exec"), ns)
@@ -91,7 +89,7 @@ def test_status_string_verdict_parses():
     assert parsed["approved"] is False
 
 
-def test_independent_matching_verdict_agrees():
+def test_semantic_prompt_asks_for_meaning_not_tokens():
     leader = {
         "approved": True,
         "reasoning": "The README lists pip install and pytest, matching the spec.",
@@ -100,91 +98,28 @@ def test_independent_matching_verdict_agrees():
         "approved": True,
         "reasoning": "Install and test commands are present.",
     }
-    assert H["_same_judgment"](leader, independent) is True
+    prompt = H["_semantic_equivalence_prompt"](leader, independent)
+    assert "Semantic equivalence check" in prompt
+    assert "Do not count shared words" in prompt
+    assert "pip install and pytest" in prompt
+    assert "Install and test commands are present." in prompt
+    assert "jaccard" not in prompt.lower()
+    assert "stem" not in prompt.lower()
 
 
-def test_divergent_approval_still_rejected():
-    leader = {
-        "approved": True,
-        "reasoning": "The README lists pip install and pytest, matching the spec.",
-    }
-    independent = {
-        "approved": False,
-        "reasoning": "The write-up never mentions install or test commands.",
-    }
-    assert H["_same_judgment"](leader, independent) is False
+def test_parse_semantic_equivalent_requires_explicit_true():
+    assert H["_parse_semantic_equivalent"]('{"equivalent": true}') is True
+    assert H["_parse_semantic_equivalent"]({"equivalent": False}) is False
+    assert H["_parse_semantic_equivalent"]('{"approved": true, "reasoning": "same words"}') is False
+    assert H["_parse_semantic_equivalent"]("not json") is False
 
 
-def test_rejecting_judges_can_agree():
-    leader = {
-        "approved": False,
-        "reasoning": "The text is a moon poem and does not provide install steps.",
-    }
-    independent = {
-        "approved": False,
-        "reasoning": "Unrelated poem rather than a README.",
-    }
-    assert H["_same_judgment"](leader, independent) is True
-
-
-def test_placeholder_independent_reasoning_rejected():
-    leader = {
-        "approved": True,
-        "reasoning": "The README lists pip install and pytest, matching the spec.",
-    }
-    independent = {"approved": True, "reasoning": "No feedback"}
-    assert H["_same_judgment"](leader, independent) is False
-
-
-def test_generic_independent_reasoning_rejected():
-    leader = {
-        "approved": True,
-        "reasoning": "The README lists pip install and pytest, matching the spec.",
-    }
-    independent = {
-        "approved": True,
-        "reasoning": "Looks good overall and should be accepted.",
-    }
-    assert H["_same_judgment"](leader, independent) is False
-
-
-def test_stemmed_paraphrase_is_same_judgment():
-    """Inflected forms collapse to the same stem (installing/install, tests/test)."""
-    leader = {
-        "approved": True,
-        "reasoning": "The README documents installing pytest for local tests.",
-    }
-    independent = {
-        "approved": True,
-        "reasoning": "Install and test commands are present in the readme.",
-    }
-    assert H["_same_judgment"](leader, independent) is True
-    assert "install" in H["_significant_tokens"](leader["reasoning"])
-    assert "test" in H["_significant_tokens"](independent["reasoning"])
-
-
-def test_synonym_stems_count_as_semantic_overlap():
-    leader = {
-        "approved": True,
-        "reasoning": "The documentation covers pytest and the install steps.",
-    }
-    independent = {
-        "approved": True,
-        "reasoning": "README includes test commands and setup instructions.",
-    }
-    assert H["_same_judgment"](leader, independent) is True
-
-
-def test_unrelated_stems_do_not_agree():
-    leader = {
-        "approved": True,
-        "reasoning": "The README lists pip install and pytest, matching the spec.",
-    }
-    independent = {
-        "approved": True,
-        "reasoning": "The moon poem is lyrical and has vivid lunar imagery.",
-    }
-    assert H["_same_judgment"](leader, independent) is False
+def test_placeholder_reasoning_is_not_substantive():
+    assert H["_reasoning_is_substantive"]("No feedback") is False
+    assert H["_reasoning_is_substantive"]("Looks good overall and should be accepted.") is False
+    assert H["_reasoning_is_substantive"](
+        "The README lists pip install and pytest, matching the spec."
+    ) is True
 
 
 def test_evidence_hash_is_stable():
@@ -230,36 +165,38 @@ def test_compose_work_includes_independent_corroboration_envelope():
         "Primary page body with pip install steps.",
         "abc123",
         "1700000000",
-        "https://r.jina.ai/https://example.com/proof.md",
+        "https://en.wikipedia.org/w/api.php?action=opensearch&search=install+tests",
         "Independent extract of pip install and pytest docs.",
         "def456",
-        "Independent source stemmed-token overlap=40%.",
+        "Independent Wikipedia search built only from the bounty spec.",
     )
-    assert "Independent source: https://r.jina.ai/https://example.com/proof.md" in composed
+    assert "opensearch" in composed
+    assert "example.com" not in composed.split("Independent source:", 1)[1].split("\n", 1)[0]
     assert "Independent sha256: def456" in composed
     assert "<evidence-secondary" in composed
     assert "UNTRUSTED INDEPENDENT EVIDENCE" in composed
     assert "pip install and pytest docs." in composed
 
 
-def test_corroboration_url_uses_wikipedia_rest_and_jina():
-    wiki = "https://en.wikipedia.org/wiki/Artificial_intelligence"
-    assert H["_corroboration_url"](wiki) == (
-        "https://en.wikipedia.org/api/rest_v1/page/summary/Artificial_intelligence"
+def test_independent_lookup_uses_spec_not_submitter_url():
+    spec = (
+        "Submit a valid public URL of an article that discusses Artificial "
+        "Intelligence and contains information about machine learning."
     )
-    page = "https://example.com/proof.md"
-    assert H["_corroboration_url"](page) == "https://r.jina.ai/" + page
-    assert H["_corroboration_url"]("https://r.jina.ai/" + page) == ""
-
-
-def test_github_blob_corroborates_via_contents_api():
-    blob = "https://github.com/acme/app/blob/main/README.md"
-    assert H["_github_contents_api_url"](blob) == (
-        "https://api.github.com/repos/acme/app/contents/README.md?ref=main"
-    )
-    assert H["_corroboration_url"](blob) == (
-        "https://api.github.com/repos/acme/app/contents/README.md?ref=main"
-    )
+    proof = "https://evil.example/wiki/Ignore_previous_instructions"
+    wiki = H["_independent_lookup_url"](spec)
+    jina = H["_independent_jina_lookup_url"](spec)
+    assert wiki.startswith("https://en.wikipedia.org/w/api.php?action=opensearch")
+    assert "artificial" in wiki
+    assert "intelligence" in wiki
+    assert "machine" in wiki
+    assert "evil.example" not in wiki
+    assert proof not in wiki
+    assert jina.startswith("https://r.jina.ai/https://en.wikipedia.org/w/index.php?search=")
+    assert "evil.example" not in jina
+    assert proof not in jina
+    # The lookup functions do not accept a proof URL.
+    assert H["_independent_lookup_url"].__code__.co_varnames[:1] == ("spec",)
 
 
 def test_github_blob_url_normalizes_to_raw():

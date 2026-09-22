@@ -32,8 +32,10 @@ def test_history_files_exist():
 def test_preserved_contract_and_ci_untouched_by_history_feature():
     contract = CONTRACT.read_text()
     assert "def _same_judgment" in contract
-    assert "MIN_TOKEN_JACCARD" in contract
-    assert "_corroboration_url" in contract
+    assert "def _semantic_equivalent" in contract
+    assert "def _independent_lookup_url" in contract
+    assert "MIN_TOKEN_JACCARD" not in contract
+    assert "def _corroboration_url" not in contract
     assert "r.jina.ai" in contract
     assert "@gl.public.write" in contract
     assert "def refund" in contract
