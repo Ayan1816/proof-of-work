@@ -184,6 +184,13 @@ def test_compose_work_includes_independent_corroboration_envelope():
     assert "pip install and pytest docs." in composed
 
 
+def test_payout_uses_eoa_external_transfer():
+    source = Path(__file__).resolve().parents[2].joinpath("contracts/proof_of_work.py").read_text()
+    assert "class _WalletPayout" in source
+    assert "_WalletPayout(Address(target)).emit_transfer" in source
+    assert "gl.get_contract_at(Address(target)).emit_transfer" not in source
+
+
 def test_proof_url_rejects_private_and_credentialed_hosts():
     assert H["_proof_url_error"]("https://example.com/readme.md") == ""
     assert "not allowed" in H["_proof_url_error"]("http://127.0.0.1/secret")

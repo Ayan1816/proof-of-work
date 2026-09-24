@@ -294,11 +294,28 @@ def _as_u256(value) -> u256:
     return u256(int(value))
 
 
+@gl.evm.contract_interface
+class _WalletPayout:
+    """External-account payout stub.
+
+    Winning wallets are EOAs on the chain layer. Value must be sent as an
+    external message. gl.get_contract_at().emit_transfer treats the address
+    as an intelligent contract and GenVM returns ERROR.
+    """
+
+    class View:
+        pass
+
+    class Write:
+        pass
+
+
 def _transfer_gen(to_hex: str, amount: int) -> None:
     if amount <= 0:
         raise gl.vm.UserError("Transfer amount must be positive.")
     target = _require_address(to_hex)
-    gl.get_contract_at(Address(target)).emit_transfer(value=u256(amount))
+    # External messages always settle on finalization. Do not pass on='accepted'.
+    _WalletPayout(Address(target)).emit_transfer(value=u256(amount))
 
 
 def _host_is_blocked(host: str) -> bool:
