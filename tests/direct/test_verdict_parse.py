@@ -186,8 +186,8 @@ def test_compose_work_includes_independent_corroboration_envelope():
 
 def test_payout_uses_eoa_external_transfer():
     source = Path(__file__).resolve().parents[2].joinpath("contracts/proof_of_work.py").read_text()
-    assert "class _WalletPayout" in source
-    assert "_WalletPayout(Address(target)).emit_transfer" in source
+    assert "gl.chain.Account" in source
+    assert "account_cls(recipient).emit_transfer" in source
     assert "gl.get_contract_at(Address(target)).emit_transfer" not in source
 
 

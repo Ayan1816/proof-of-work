@@ -294,28 +294,36 @@ def _as_u256(value) -> u256:
     return u256(int(value))
 
 
-@gl.evm.contract_interface
-class _WalletPayout:
-    """External-account payout stub.
-
-    Winning wallets are EOAs on the chain layer. Value must be sent as an
-    external message. gl.get_contract_at().emit_transfer treats the address
-    as an intelligent contract and GenVM returns ERROR.
-    """
-
-    class View:
-        pass
-
-    class Write:
-        pass
-
-
 def _transfer_gen(to_hex: str, amount: int) -> None:
+    """Send native GEN to an EOA.
+
+    gl.get_contract_at().emit_transfer and an EVM-interface emit_transfer
+    both schedule a GenVM call. The winner has no contract code, so that
+    child transaction finishes with GENVM ERROR and the balance stays 0.
+    gl.chain.Account.emit_transfer is a plain value transfer to any address,
+    including one with no code.
+    """
     if amount <= 0:
         raise gl.vm.UserError("Transfer amount must be positive.")
     target = _require_address(to_hex)
-    # External messages always settle on finalization. Do not pass on='accepted'.
-    _WalletPayout(Address(target)).emit_transfer(value=u256(amount))
+    recipient = Address(target)
+    value = u256(int(amount))
+    chain = getattr(gl, "chain", None)
+    account_cls = getattr(chain, "Account", None) if chain is not None else None
+    if account_cls is None:
+        raise gl.vm.UserError(
+            "Native GEN payout requires gl.chain.Account.emit_transfer."
+        )
+    account_cls(recipient).emit_transfer(value=value, on="finalized")
+
+
+def _account_balance(account: str) -> int:
+    target = _require_address(account)
+    chain = getattr(gl, "chain", None)
+    account_cls = getattr(chain, "Account", None) if chain is not None else None
+    if account_cls is None:
+        raise gl.vm.UserError("Account balances require gl.chain.Account.")
+    return int(account_cls(Address(target)).balance)
 
 
 def _host_is_blocked(host: str) -> bool:
@@ -1165,6 +1173,16 @@ class ProofOfWork(gl.Contract):
     @gl.public.view
     def get_name(self) -> str:
         return "Proof of Work"
+
+    @gl.public.view
+    def get_contract_balance(self) -> int:
+        """Native GEN held by this contract."""
+        return int(self.balance)
+
+    @gl.public.view
+    def get_account_balance(self, account: str) -> int:
+        """Native GEN held by an EOA or contract address."""
+        return _account_balance(account)
 
     @gl.public.view
     def get_bounty_count(self) -> int:

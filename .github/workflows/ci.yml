@@ -109,4 +109,4 @@ jobs:
           exit 1
       - name: Run Studio-backed integration tests
         if: env.SKIP_STUDIO != '1'
-        run: gltest tests/integration/test_proof_of_work.py -v -s --network localnet
+        run: gltest tests/integration/test_proof_of_work.py tests/test_lifecycle.py -v -s --network localnet

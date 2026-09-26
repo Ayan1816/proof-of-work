@@ -106,7 +106,7 @@ naive URL and escrow mistakes:
 | --- | --- |
 | Reject loopback, link-local, private hosts, and URLs with credentials or whitespace | `_proof_url_error`, `_host_is_blocked`, `_require_http_url` |
 | Pay and refund only to a 20-byte `0x` address | `_require_address` |
-| Pay an EOA with an external message, not `gl.get_contract_at` | `_WalletPayout.emit_transfer` inside `_transfer_gen` |
+| Pay an EOA with a plain value transfer, not a GenVM contract call | `gl.chain.Account.emit_transfer` inside `_transfer_gen` |
 | Cap title, spec, description, reasoning, and reward | `MAX_TITLE_LEN`, `MAX_TEXT_LEN`, `MAX_REASONING_LEN`, `MAX_REWARD` |
 | Strip prompt-injection markers before both LLM prompts | `_sanitize_untrusted` inside `_build_judge_prompt` and `_semantic_equivalence_prompt` |
 | Refuse to judge when the spec-only Wikipedia/Jina lookup returns nothing | `_prepared_work` |

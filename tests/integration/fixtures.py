@@ -68,6 +68,18 @@ proof_of_work_contract_schema = {
                 "readonly": True,
                 "ret": "int",
             },
+            "get_contract_balance": {
+                "kwparams": {},
+                "params": [],
+                "readonly": True,
+                "ret": "int",
+            },
+            "get_account_balance": {
+                "kwparams": {},
+                "params": [["account", "string"]],
+                "readonly": True,
+                "ret": "int",
+            },
             "submit_work": {
                 "kwparams": {},
                 "params": [
