@@ -89,10 +89,22 @@ function isValidContractAddress(address: string): boolean {
   return /^0x[a-fA-F0-9]{40}$/.test(address.trim());
 }
 
+/** Current Studio deployment of contracts/proof_of_work.py. */
+export const DEPLOYED_CONTRACT_ADDRESS =
+  "0x2Ab545f92779ef088cF48a56B4F95fACCAbBb2f9";
+const PREVIOUS_CONTRACT_ADDRESS =
+  "0x6E64B75d36E72c0553A14a595940E793BCd17765";
+
 export function getContractAddress(): string {
-  const address = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "").trim();
+  const fromEnv = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "").trim();
+  // A stale Vercel env still pointing at the pre-payout-fix contract must not
+  // win over the deployment recorded in this file.
+  const address =
+    !fromEnv ||
+    fromEnv.toLowerCase() === PREVIOUS_CONTRACT_ADDRESS.toLowerCase()
+      ? DEPLOYED_CONTRACT_ADDRESS
+      : fromEnv;
   if (!address) {
-    // Return empty string during build, error will be shown in UI during runtime
     return "";
   }
   if (!isValidContractAddress(address)) {

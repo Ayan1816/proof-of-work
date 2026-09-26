@@ -46,7 +46,7 @@ jobs:
       - name: Build frontend
         run: npm run build
         env:
-          NEXT_PUBLIC_CONTRACT_ADDRESS: "0x6E64B75d36E72c0553A14a595940E793BCd17765"
+          NEXT_PUBLIC_CONTRACT_ADDRESS: "0x2Ab545f92779ef088cF48a56B4F95fACCAbBb2f9"
           NEXT_PUBLIC_GENLAYER_RPC_URL: "https://studio.genlayer.com/api"
           NEXT_PUBLIC_GENLAYER_CHAIN_ID: "61999"
           NEXT_PUBLIC_GENLAYER_CHAIN_NAME: "GenLayer Studio"
