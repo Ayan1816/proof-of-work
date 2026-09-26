@@ -294,36 +294,35 @@ def _as_u256(value) -> u256:
     return u256(int(value))
 
 
-def _transfer_gen(to_hex: str, amount: int) -> None:
-    """Send native GEN to an EOA.
+@gl.evm.contract_interface
+class _NativeRecipient:
+    """External message used only to send native GEN to a wallet.
 
-    gl.get_contract_at().emit_transfer and an EVM-interface emit_transfer
-    both schedule a GenVM call. The winner has no contract code, so that
-    child transaction finishes with GENVM ERROR and the balance stays 0.
-    gl.chain.Account.emit_transfer is a plain value transfer to any address,
-    including one with no code.
+    A plain get_contract_at().emit_transfer is a GenVM call, and an EOA
+    has no code, so that child transaction returns ERROR. This interface
+    with on="finalized" is the native payout on py-genlayer 1jb45aa8.
     """
+
+    class View:
+        pass
+
+    class Write:
+        pass
+
+
+def _transfer_gen(to_hex: str, amount: int) -> None:
     if amount <= 0:
         raise gl.vm.UserError("Transfer amount must be positive.")
-    target = _require_address(to_hex)
-    recipient = Address(target)
-    value = u256(int(amount))
-    chain = getattr(gl, "chain", None)
-    account_cls = getattr(chain, "Account", None) if chain is not None else None
-    if account_cls is None:
-        raise gl.vm.UserError(
-            "Native GEN payout requires gl.chain.Account.emit_transfer."
-        )
-    account_cls(recipient).emit_transfer(value=value, on="finalized")
+    recipient = Address(_require_address(to_hex))
+    _NativeRecipient(recipient).emit_transfer(
+        value=u256(int(amount)),
+        on="finalized",
+    )
 
 
 def _account_balance(account: str) -> int:
-    target = _require_address(account)
-    chain = getattr(gl, "chain", None)
-    account_cls = getattr(chain, "Account", None) if chain is not None else None
-    if account_cls is None:
-        raise gl.vm.UserError("Account balances require gl.chain.Account.")
-    return int(account_cls(Address(target)).balance)
+    recipient = Address(_require_address(account))
+    return int(gl.get_contract_at(recipient).balance)
 
 
 def _host_is_blocked(host: str) -> bool:
